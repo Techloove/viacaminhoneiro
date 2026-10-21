@@ -36,7 +36,7 @@ bun run dev -- --host 0.0.0.0 --port 5173
 npm run build
 ```
 
-Sem variáveis, o aplicativo funciona como demonstração: viagens e leitura de XML ficam apenas na memória e são perdidas ao recarregar. Nenhuma emissão fiscal é executada. Hub e apuração financeira ainda não estão implementados.
+Com VITE_DEMO_MODE=true, o aplicativo funciona como demonstração: viagens e leitura de XML ficam apenas na memória e são perdidas ao recarregar. Nenhuma emissão fiscal é executada. Hub e apuração financeira ainda não estão implementados.
 
 ## Supabase
 
@@ -60,10 +60,16 @@ O projeto Lovable informado é https://lovable.dev/projects/7a534a95-85fa-412c-9
 
 ## SaaS de transportadoras: operação de frete
 
-A primeira audiência passa a ser transportadoras prestadoras de frete. Com Supabase configurado, o conteúdo operacional exige login e associação a uma organização; o modo público sem Supabase é apenas demonstração. O cadastro Minha transportadora salva dados em carrier_profiles, após aplicar também `supabase/migrations/202610210002_carrier_workflow.sql`. Somente owner/manager podem alterar o cadastro. A organização é a fronteira de acesso, não um campo livre de filtro.
+A primeira audiência passa a ser transportadoras prestadoras de frete. Com Supabase configurado, o conteúdo operacional exige login e associação a uma organização; o modo público VITE_DEMO_MODE=true é apenas demonstração. O cadastro Minha transportadora salva dados em carrier_profiles, após aplicar também `supabase/migrations/202610210002_carrier_workflow.sql`. Somente owner/manager podem alterar o cadastro. A organização é a fronteira de acesso, não um campo livre de filtro.
 
 A tela Operação de frete reúne NF-e → CT-e → CIOT → MDF-e. XML importado manualmente pode informar o CNPJ da transportadora; coincidência de cadastro não comprova acesso autorizado, autenticidade ou autorização SEFAZ. O certificado não envia notificações: a captura necessita de distribuição autorizada, NSU, monitoramento e tratamento das limitações do serviço. Isso ainda não está integrado. Não cadastrar certificado/senha no frontend.
 
 A nova migração também prepara notas recebidas, operações e documentos confirmados com vínculos compostos por organização. Essas três tabelas são somente leitura para clientes autenticados; apenas backend autorizado poderá registrar confirmações reais. Não existe ainda endpoint de escrita, automação da cadeia fiscal ou fila de notificações. Uma NF-e não é tratada como autorização para emitir CT-e; exigências fiscais/credenciamento devem ser avaliados. CIOT pode depender de modalidade e contratante, e precisa ser registrado no prazo aplicável, sem assumir ordem universal.
 
 Antes de disponibilizar a clientes: aplicar e testar migrações em homologação com duas organizações; validar isolamento de leitura/escrita e permissões; implementar captura autorizada e custódia de certificados; completar os contratos FazNota e credenciamento/parceiro CIOT. Notas locais não são armazenadas no banco e rascunhos fiscais continuam temporários.
+
+## Conexão no Lovable
+
+`src/lib/public-supabase-config.ts` contém a URL e a chave **publishable** do projeto escolhido. São configurações públicas do navegador, preservadas na sincronização via GitHub. Isso permite ao preview e ao build do Lovable exibir login mesmo sem variáveis configuradas no editor. Nenhuma senha ou chave administrativa foi incluída.
+
+As variáveis VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY continuam disponíveis para substituir a configuração, sempre como um par. Para demonstração explícita, use VITE_DEMO_MODE=true. A autenticação e as políticas RLS continuam obrigatórias; a chave pública não dá acesso administrativo.
