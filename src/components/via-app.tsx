@@ -59,6 +59,8 @@ export default function App() {
   const [user, setUser] = useState<string | null>(null);
   const [org, setOrg] = useState<string | null>(null);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [accessRefresh, setAccessRefresh] = useState(0);
+  const [checkingAccess, setCheckingAccess] = useState(false);
   const [adminFiscalCompany, setAdminFiscalCompany] = useState<{ id: string; name: string } | null>(
     null,
   );
@@ -104,18 +106,44 @@ export default function App() {
     setIsPlatformAdmin(false);
     setAdminFiscalCompany(null);
     if (!supabase || !user) return;
+    setCheckingAccess(true);
     void (async () => {
       try {
         const { data, error } = await supabase.rpc("is_platform_admin");
-        if (active && !error) setIsPlatformAdmin(data === true);
+        if (!active) return;
+        if (error) {
+          setNotice(
+            "Não foi possível verificar o acesso administrativo. Confira a publicação da migração 007 e tente Atualizar acesso. Código: " +
+              (error.code || "indisponível"),
+          );
+          return;
+        }
+        setIsPlatformAdmin(data === true);
+        if (accessRefresh > 0) {
+          if (data === true) {
+            setNotice("Acesso administrativo confirmado.");
+            setPage("Administração SaaS");
+          } else {
+            const { data: session } = await supabase.auth.getSession();
+            if (active)
+              setNotice(
+                "A conta conectada (" +
+                  (session.session?.user.email || "e-mail indisponível") +
+                  ") não foi reconhecida como administradora neste projeto Supabase.",
+              );
+          }
+        }
       } catch {
-        /* Normal tenant use stays available before platform migration. */
+        if (active)
+          setNotice("Falha de conexão ao verificar suas permissões. Tente Atualizar acesso.");
+      } finally {
+        if (active) setCheckingAccess(false);
       }
     })();
     return () => {
       active = false;
     };
-  }, [user]);
+  }, [user, accessRefresh]);
   useEffect(() => {
     setTrips([]);
     if (!supabase || !org) return;
@@ -312,6 +340,15 @@ export default function App() {
             <span className="mode">
               {supabase ? "Supabase configurado" : "Modo de demonstração"}
             </span>
+            {user && (
+              <button
+                className="secondary"
+                disabled={checkingAccess}
+                onClick={() => setAccessRefresh((value) => value + 1)}
+              >
+                {checkingAccess ? "Verificando acesso…" : "Atualizar acesso"}
+              </button>
+            )}
             {user && (
               <button className="icon" aria-label="Sair" onClick={() => supabase?.auth.signOut()}>
                 <LogOut size={18} />
