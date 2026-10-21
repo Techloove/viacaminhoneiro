@@ -73,3 +73,19 @@ Antes de disponibilizar a clientes: aplicar e testar migrações em homologaçã
 `src/lib/public-supabase-config.ts` contém a URL e a chave **publishable** do projeto escolhido. São configurações públicas do navegador, preservadas na sincronização via GitHub. Isso permite ao preview e ao build do Lovable exibir login mesmo sem variáveis configuradas no editor. Nenhuma senha ou chave administrativa foi incluída.
 
 As variáveis VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY continuam disponíveis para substituir a configuração, sempre como um par. Para demonstração explícita, use VITE_DEMO_MODE=true. A autenticação e as políticas RLS continuam obrigatórias; a chave pública não dá acesso administrativo.
+
+## Assistente de preparação de frete
+
+A tela **Operação de frete** agora tem cinco etapas: Carga, Participantes, Frete, Viagem/CIOT e Revisão. Uma NF-e importada sugere chave, participantes, cidades, peso, valor e descrição da carga; tudo exige revisão. A chave digitada manualmente não busca XML automaticamente. Apenas uma NF-e por rascunho nesta versão.
+
+Para habilitar persistência, execute **somente a nova migração** `supabase/migrations/202610210003_freight_drafts.sql` no SQL Editor do projeto em que as migrações 001 e 002 já foram aplicadas. Depois clique em **Salvar rascunho** e recarregue: **Retomar uma operação** deve listar a referência e abrir na etapa salva. Não reaplique as migrações anteriores. Sem a terceira migração, a tela permite preparação, mas informa que não conseguiu gravar. Não confunda os rascunhos antigos da Central Fiscal com os novos rascunhos persistentes do assistente.
+
+O salvamento é explícito, sem autosave ou cache de dados pessoais no navegador. Há proteção para sair com alterações não salvas. A listagem traz até 100 rascunhos recentes e busca local por referência/rota/chave. O RPC grava com revisão otimista, evitando sobrescrever outra sessão sem detectar conflito. Em caso de conflito, preserve os valores de sua edição, feche o assistente e atualize a lista para reabrir a versão atual. Ainda não há mesclagem automática ou exclusão de rascunhos.
+
+A nova tabela tem leitura por RLS para owner/manager/operator/viewer da organização. A gravação usa função com verificação de associação e permissão owner/manager/operator; escrita direta e acesso anônimo são negados. O identificador da organização é conferido no servidor, inclusive em atualizações. A tabela guarda apenas preparação, sem estados de autorização fiscal.
+
+Verificações desta entrega: testes de interface para importação, navegação sem perda de campos, salvar/reabrir, falhas de gravação e conflito; teste local das três migrações em PostgreSQL isolado com PGlite para isolamento, permissões e concorrência. Esses testes não substituem validar login e duas organizações no Supabase real após aplicar a migração.
+
+A interface não calcula piso oficial, impostos ou frete líquido, não paga frete e não emite CT-e/CIOT/MDF-e. O XML original não é arquivado; os dados de preparação selecionados ficam no rascunho salvo. Cadastros reutilizáveis de motoristas/veículos e homologação fiscal permanecem etapas seguintes.
+
+Para repetir as verificações: `npm run test` (interface e lógica), `npm run test:db` (PostgreSQL isolado em memória, sem conexão ao Supabase), `./node_modules/.bin/tsc --noEmit` e `npm run build`.

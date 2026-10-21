@@ -14,7 +14,7 @@ import {
   ShieldCheck,
   LogOut,
 } from "lucide-react";
-import { XMLParser, XMLValidator } from "fast-xml-parser";
+import { parseInvoiceXml } from "../lib/nfe-import";
 import { supabase } from "../supabase";
 
 import FiscalWorkspace from "./fiscal-workspace";
@@ -31,10 +31,11 @@ type Trip = {
   status: string;
   organization_id?: string;
 };
-type Doc = { key: string; number: string; issuer: string; carrierCnpj?: string };
+type Doc = import("./carrier-operation").ReceivedNote;
 const money = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v / 100);
 export default function App() {
+  const [wizardDirty, setWizardDirty] = useState(false);
   const [invoiceKey, setInvoiceKey] = useState("");
   const [profile, setProfile] = useState<CarrierProfile | null>(null);
   const updateProfile = useCallback((p: CarrierProfile | null) => setProfile(p), []);
@@ -105,6 +106,23 @@ export default function App() {
     setProfile(null);
     setInvoiceKey("");
   }, [user, org]);
+  useEffect(() => {
+    if (!supabase || !org) return;
+    let active = true;
+    supabase
+      .from("carrier_profiles")
+      .select("name,cnpj,rntrc,state_registration,email")
+      .eq("organization_id", org)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) setNotice(error.message);
+        else setProfile(data ?? null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [org]);
   async function login(e: React.FormEvent) {
     e.preventDefault();
     if (busy) return;
@@ -177,28 +195,10 @@ export default function App() {
     if (!file) return;
     try {
       if (file.size > 2_000_000) throw Error("O XML deve ter até 2 MB.");
-      const text = await file.text();
-      if (/<!DOCTYPE|<!ENTITY/i.test(text))
-        throw Error("XML com entidades externas não é permitido.");
-      if (XMLValidator.validate(text) !== true) throw Error("XML inválido.");
-      const xml = new XMLParser({
-        ignoreAttributes: false,
-        parseTagValue: false,
-        removeNSPrefix: true,
-      }).parse(text);
-      const inf = (xml.nfeProc?.NFe ?? xml.NFe)?.infNFe;
-      const key = String(inf?.["@_Id"] ?? "").replace(/^NFe/, "");
-      if (!/^\d{44}$/.test(key)) throw Error("Não foi encontrada uma NF-e com chave válida.");
-      if (docs.some((d) => d.key === key)) throw Error("Esta NF-e já foi importada nesta sessão.");
-      setDocs((v) => [
-        ...v,
-        {
-          key,
-          number: String(inf.ide?.nNF ?? ""),
-          issuer: String(inf.emit?.xNome ?? "Emitente não informado"),
-          carrierCnpj: String(inf.transp?.transporta?.CNPJ ?? "").replace(/\D/g, ""),
-        },
-      ]);
+      const invoice = parseInvoiceXml(await file.text());
+      if (docs.some((d) => d.key === invoice.key))
+        throw Error("Esta NF-e já foi importada nesta sessão.");
+      setDocs((v) => [...v, invoice]);
       setNotice(
         "XML lido nesta sessão. A leitura não valida autorização na SEFAZ e ainda não é arquivada no banco.",
       );
@@ -236,7 +236,15 @@ export default function App() {
           {items.map(([name, Icon]) => (
             <button
               className={page === name ? "active" : ""}
-              onClick={() => setPage(name)}
+              onClick={() => {
+                if (
+                  !wizardDirty ||
+                  window.confirm("Há alterações não salvas. Deseja descartá-las?")
+                ) {
+                  setWizardDirty(false);
+                  setPage(name);
+                }
+              }}
               key={name}
             >
               <Icon size={20} />
@@ -503,6 +511,9 @@ export default function App() {
               )}
               {page === "Operação de frete" && (
                 <CarrierOperation
+                  key={org ?? "demo"}
+                  organizationId={org}
+                  onDirtyChange={setWizardDirty}
                   notes={docs}
                   profile={profile}
                   onImport={() => setPage("Documentos")}

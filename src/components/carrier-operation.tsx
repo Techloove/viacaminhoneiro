@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Building2, Bell, FileCheck2, ArrowRight, LockKeyhole, ShieldCheck } from "lucide-react";
+import { Building2, LockKeyhole } from "lucide-react";
+import FreightAssistant from "./freight-assistant";
 import { validCnpj } from "../lib/cnpj";
 import { supabase } from "../supabase";
 export type CarrierProfile = {
@@ -9,7 +10,18 @@ export type CarrierProfile = {
   state_registration: string;
   email: string;
 };
-export type ReceivedNote = { key: string; number: string; issuer: string; carrierCnpj?: string };
+export type ReceivedNote = {
+  key: string;
+  number: string;
+  issuer: string;
+  carrierCnpj?: string;
+  recipient?: string;
+  origin?: string;
+  destination?: string;
+  cargo?: string;
+  weightKg?: string;
+  cargoValue?: string;
+};
 export function CarrierSettings({
   organizationId,
   onChange,
@@ -155,134 +167,23 @@ export function CarrierOperation({
   notes,
   profile,
   onImport,
-  onFiscal,
+  organizationId = null,
+  onDirtyChange,
 }: {
   notes: ReceivedNote[];
   profile: CarrierProfile | null;
   onImport: () => void;
-  onFiscal: (key: string) => void;
+  organizationId?: string | null;
+  onDirtyChange?: (dirty: boolean) => void;
+  onFiscal?: (key: string) => void;
 }) {
-  const [selected, setSelected] = useState("");
-  const note = notes.find((n) => n.key === selected);
-  const match = !!note?.carrierCnpj && !!profile?.cnpj && note.carrierCnpj === profile.cnpj;
   return (
-    <>
-      <section className="panel">
-        <div className="section-title">
-          <div>
-            <span className="eyebrow">NF-e → CT-e → CIOT → MDF-e</span>
-            <h2>Da nota recebida à viagem documentada</h2>
-            <p>Cada etapa depende da confirmação do serviço responsável.</p>
-          </div>
-          <ShieldCheck />
-        </div>
-        <div className="fiscal-steps">
-          {["NF-e recebida", "CT-e autorizado", "CIOT registrado", "MDF-e autorizado"].map(
-            (s, i) => (
-              <div key={s}>
-                <span>{i + 1}</span>
-                <strong>{s}</strong>
-                {i < 3 && <ArrowRight size={16} />}
-              </div>
-            ),
-          )}
-        </div>
-        <div className="banner">
-          A ordem proposta orienta a operação. A exigência de CIOT e os demais requisitos dependem
-          da contratação. O registro deve ocorrer no prazo legal aplicável e antes da etapa que
-          exigir seu código.
-        </div>
-      </section>
-      <section className="panel">
-        <div className="section-title">
-          <div>
-            <h2>
-              <Bell size={18} /> Caixa de entrada de NF-e
-            </h2>
-            <p>
-              {notes.length} XML(s) importado(s) manualmente nesta sessão. Nenhuma captura
-              automática ativa.
-            </p>
-          </div>
-          <button className="secondary" onClick={onImport}>
-            Importar XML
-          </button>
-        </div>
-        {notes.length === 0 ? (
-          <div className="empty">
-            <Bell size={30} />
-            <h3>Aguardando suas primeiras notas</h3>
-            <p>
-              Conecte a captura autorizada ou importe um XML para começar.
-              <br />A importação não confirma autenticidade nem autorização na SEFAZ.
-            </p>
-          </div>
-        ) : (
-          <div className="note-inbox">
-            {notes.map((n) => (
-              <button
-                className={selected === n.key ? "note-selected" : ""}
-                key={n.key}
-                onClick={() => setSelected(n.key)}
-              >
-                <FileCheck2 size={20} />
-                <span>
-                  <strong>
-                    NF-e {n.number} · {n.issuer}
-                  </strong>
-                  <small>
-                    {n.carrierCnpj
-                      ? `CNPJ da transportadora no XML: ${n.carrierCnpj}`
-                      : "Transportadora não identificada no XML"}
-                  </small>
-                </span>
-                <ArrowRight size={16} />
-              </button>
-            ))}
-          </div>
-        )}
-      </section>
-      {note && (
-        <section className="panel">
-          <h2>Preparar operação · NF-e {note.number}</h2>
-          <p className="note-key">{note.key}</p>
-          <div className="event-checklist">
-            <h3>{match ? "CNPJ compatível com o cadastro" : "Revisão de vínculo necessária"}</h3>
-            <p>
-              {match
-                ? "O CNPJ da transportadora no XML coincide com o cadastro. Isso não comprova autenticidade ou autorização fiscal."
-                : "Cadastre sua transportadora e confira se ela está identificada no XML. O vínculo não foi confirmado."}
-            </p>
-          </div>
-          <div className="operation-stage">
-            <strong>1. CT-e</strong>
-            <p>Aguardando revisão fiscal, contrato completo e autorização do provedor.</p>
-            <button className="secondary" onClick={() => onFiscal(note.key)}>
-              Abrir preparação fiscal
-            </button>
-          </div>
-          <div className="operation-stage">
-            <strong>2. CIOT</strong>
-            <p>
-              Depende de acesso autorizado, enquadramento da operação e dados de contratação.
-              Contrato técnico ANTT identificado; serviço não conectado.
-            </p>
-            <button className="primary" disabled>
-              Registrar CIOT · integração pendente
-            </button>
-          </div>
-          <div className="operation-stage">
-            <strong>3. MDF-e</strong>
-            <p>
-              Vincular as chaves dos CT-e autorizados e as informações do CIOT quando exigidas.
-              Nenhum documento anterior confirmado nesta versão.
-            </p>
-            <button className="primary" disabled>
-              Emitir MDF-e · pré-requisitos pendentes
-            </button>
-          </div>
-        </section>
-      )}
-    </>
+    <FreightAssistant
+      notes={notes}
+      profile={profile}
+      onImport={onImport}
+      organizationId={organizationId}
+      {...(onDirtyChange ? { onDirtyChange } : {})}
+    />
   );
 }
