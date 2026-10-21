@@ -52,6 +52,11 @@ export default function FreightAssistant({
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [saveFeedback, setSaveFeedback] = useState<{
+    kind: "idle" | "saving" | "saved" | "error";
+    time?: string;
+    text?: string;
+  }>({ kind: "idle" });
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState("");
@@ -118,6 +123,8 @@ export default function FreightAssistant({
   function change<K extends keyof FreightDraft>(key: K, value: FreightDraft[K]) {
     setDraft((d) => ({ ...d, [key]: value }));
     setDirty(true);
+    setSaveFeedback({ kind: "idle" });
+    setMessage("");
   }
   function canLeave() {
     return !dirty || window.confirm("Há alterações não salvas. Deseja descartá-las?");
@@ -142,6 +149,7 @@ export default function FreightAssistant({
     setStep(0);
     setEditing(true);
     setDirty(true);
+    setSaveFeedback({ kind: "idle" });
     setMessage("");
   }
   function resume(row: DraftRow) {
@@ -152,11 +160,13 @@ export default function FreightAssistant({
     setStep(row.current_step);
     setEditing(true);
     setDirty(false);
+    setSaveFeedback({ kind: "idle" });
     setMessage("Rascunho reaberto. Nenhuma emissão fiscal foi realizada.");
   }
   async function save() {
     if (busy) return;
     setBusy(true);
+    setSaveFeedback({ kind: "saving" });
     setMessage("");
     try {
       const payload = freightDraftSchema.parse(draft);
@@ -189,13 +199,16 @@ export default function FreightAssistant({
       setRows((old) => [row, ...old.filter((r) => r.id !== id)]);
       setRevision(row.revision);
       setDirty(false);
+      setSaveFeedback({ kind: "saved", time: new Date().toLocaleTimeString("pt-BR") });
       setMessage(
         supabase
           ? "Rascunho salvo na transportadora. Você pode retomá-lo depois."
           : "Rascunho temporário: será perdido ao recarregar.",
       );
     } catch (e) {
-      setMessage(explain(e as { message: string; code?: string }));
+      const errorText = explain(e as { message: string; code?: string });
+      setMessage(errorText);
+      setSaveFeedback({ kind: "error", text: errorText });
     } finally {
       setBusy(false);
     }
@@ -238,6 +251,8 @@ export default function FreightAssistant({
   function go(next: number) {
     setStep(next);
     setDirty(true);
+    setSaveFeedback({ kind: "idle" });
+    setMessage("");
   }
   const field = (
     key: keyof FreightDraft,
@@ -307,7 +322,11 @@ export default function FreightAssistant({
                 disabled={busy || (!dirty && revision > 0)}
               >
                 <Save size={15} />
-                {busy ? "Salvando progresso…" : "Salvar progresso"}
+                {saveFeedback.kind === "saving"
+                  ? "Salvando progresso…"
+                  : saveFeedback.kind === "saved" && !dirty
+                    ? "Progresso salvo"
+                    : "Salvar progresso"}
               </button>
               <button
                 className="icon"
@@ -410,6 +429,8 @@ export default function FreightAssistant({
                   onApply={(data) => {
                     setDraft((old) => ({ ...old, ...data }));
                     setDirty(true);
+                    setSaveFeedback({ kind: "idle" });
+                    setMessage("");
                   }}
                 />
                 <div className="wizard-grid">
@@ -607,6 +628,53 @@ export default function FreightAssistant({
             )}
           </fieldset>
           <div className="wizard-footer">
+            <div
+              className={`save-feedback save-feedback-${saveFeedback.kind}`}
+              aria-label="Resultado do salvamento"
+              aria-live="polite"
+              {...(saveFeedback.kind === "error" ? { role: "alert" } : {})}
+            >
+              {saveFeedback.kind === "saving" && (
+                <>
+                  <Save size={18} />
+                  <span>Salvando seu progresso. Aguarde a confirmação.</span>
+                </>
+              )}
+              {saveFeedback.kind === "saved" && !dirty && (
+                <>
+                  <CheckCircle2 size={20} />
+                  <span>
+                    <strong>
+                      {supabase ? "Salvo na transportadora" : "Guardado somente nesta sessão"} às{" "}
+                      {saveFeedback.time} · versão {revision}
+                    </strong>
+                    <small>
+                      {supabase
+                        ? "Você pode sair e retomar esta operação depois."
+                        : "Estes dados serão perdidos ao recarregar a página."}
+                    </small>
+                  </span>
+                </>
+              )}
+              {saveFeedback.kind === "error" && (
+                <>
+                  <X size={20} />
+                  <span>
+                    <strong>Salvamento não confirmado</strong>
+                    <small>{saveFeedback.text} Seus campos continuam nesta tela.</small>
+                  </span>
+                </>
+              )}
+              {saveFeedback.kind === "idle" && (
+                <span>
+                  {dirty
+                    ? "Há alterações pendentes. Salve para continuar depois."
+                    : revision > 0
+                      ? "Nenhuma alteração pendente para salvar."
+                      : "Você pode salvar mesmo sem todos os dados."}
+                </span>
+              )}
+            </div>
             <button
               className="secondary"
               disabled={busy || step === 0}
@@ -621,7 +689,11 @@ export default function FreightAssistant({
               disabled={busy || (!dirty && revision > 0)}
             >
               <Save size={15} />
-              {busy ? "Salvando…" : "Salvar rascunho"}
+              {saveFeedback.kind === "saved" && !dirty
+                ? "Rascunho salvo"
+                : saveFeedback.kind === "saving"
+                  ? "Salvando…"
+                  : "Salvar rascunho"}
             </button>
             {step < 4 && (
               <button className="primary" disabled={busy} onClick={() => go(step + 1)}>

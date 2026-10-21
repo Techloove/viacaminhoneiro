@@ -48,6 +48,7 @@ export default function App() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [docs, setDocs] = useState<Doc[]>([]);
   const [notice, setNotice] = useState("");
+  const [tripError, setTripError] = useState("");
   const [loginError, setLoginError] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -157,10 +158,12 @@ export default function App() {
   }
   async function saveTrip(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (busy) return;
+    setTripError("");
     const f = new FormData(e.currentTarget);
     const value = Number(String(f.get("freight")).replace(",", "."));
     if (!Number.isFinite(value) || value < 0) {
-      setNotice("Informe um valor válido.");
+      setTripError("Informe um valor válido.");
       return;
     }
     const t: Trip = {
@@ -173,7 +176,7 @@ export default function App() {
       status: "draft",
     };
     if (!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(t.plate)) {
-      setNotice("Confira a placa, sem hífen: ABC1D23 ou ABC1234.");
+      setTripError("Confira a placa, sem hífen: ABC1D23 ou ABC1234.");
       return;
     }
     setBusy(true);
@@ -191,7 +194,7 @@ export default function App() {
           : "Rascunho temporário criado. Ele será perdido ao recarregar.",
       );
     } catch (e) {
-      setNotice((e as Error).message);
+      setTripError((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -290,7 +293,13 @@ export default function App() {
               <h1>{page === "Visão geral" ? "Tudo pronto para a próxima viagem?" : page}</h1>
               <p>Menos burocracia. Mais tempo para seguir em frente.</p>
             </div>
-            <button className="primary" onClick={() => setModal(true)}>
+            <button
+              className="primary"
+              onClick={() => {
+                setTripError("");
+                setModal(true);
+              }}
+            >
               <Plus size={18} /> Nova viagem
             </button>
           </div>
@@ -304,7 +313,7 @@ export default function App() {
             </div>
           )}
           {notice && (
-            <div className="notice" role="status">
+            <div className="notice app-toast" role="status">
               {notice}
               <button aria-label="Fechar aviso" onClick={() => setNotice("")}>
                 <X size={16} />
@@ -400,7 +409,12 @@ export default function App() {
                           <br />
                           cada etapa em um único lugar.
                         </p>
-                        <button onClick={() => setModal(true)}>
+                        <button
+                          onClick={() => {
+                            setTripError("");
+                            setModal(true);
+                          }}
+                        >
                           Organizar uma viagem <ArrowUpRight size={18} />
                         </button>
                       </div>
@@ -486,7 +500,13 @@ export default function App() {
                         <Route size={32} />
                         <h3>O próximo destino começa com você</h3>
                         <p>Cadastre sua primeira viagem para organizar o frete e os documentos.</p>
-                        <button className="secondary" onClick={() => setModal(true)}>
+                        <button
+                          className="secondary"
+                          onClick={() => {
+                            setTripError("");
+                            setModal(true);
+                          }}
+                        >
                           <Plus size={16} /> Cadastrar viagem
                         </button>
                       </div>
@@ -608,6 +628,11 @@ export default function App() {
             <span className="eyebrow">VAMOS PEGAR A ESTRADA</span>
             <h2 id="dialog-title">Nova viagem</h2>
             <p>Comece pelo essencial. A viagem será salva como rascunho.</p>
+            {tripError && (
+              <div className="notice" role="alert">
+                {tripError}
+              </div>
+            )}
             <form onSubmit={saveTrip}>
               <label>
                 Origem

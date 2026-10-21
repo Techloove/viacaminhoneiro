@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, act } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { emptyFreightDraft, type DraftRow } from "../lib/freight-draft";
 const db = vi.hoisted(() => ({
@@ -111,6 +111,79 @@ describe("Trip creation from saved drafts", () => {
   });
 });
 describe("Draft persistence feedback", () => {
+  it("shows saving beside the button and only confirms success after the server returns", async () => {
+    let finish: (() => void) | undefined;
+    db.rpc.mockImplementation(
+      (
+        _name: string,
+        args: {
+          p_id: string;
+          p_organization_id: string;
+          p_payload: unknown;
+          p_current_step: number;
+        },
+      ) =>
+        new Promise((resolve) => {
+          finish = () =>
+            resolve({
+              data: {
+                id: args.p_id,
+                organization_id: args.p_organization_id,
+                payload: args.p_payload,
+                current_step: args.p_current_step,
+                revision: 1,
+                updated_at: new Date().toISOString(),
+              },
+              error: null,
+            });
+        }),
+    );
+    render(
+      <FreightAssistant organizationId="org-a" notes={[]} profile={null} onImport={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Nova operação" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar rascunho" }));
+    expect(screen.getByLabelText("Resultado do salvamento")).toHaveTextContent(
+      "Salvando seu progresso",
+    );
+    expect(screen.getByRole("button", { name: "Salvando…" })).toBeDisabled();
+    expect(screen.queryByText(/Salvo na transportadora às/)).not.toBeInTheDocument();
+    await act(async () => {
+      finish?.();
+    });
+    expect(screen.getByLabelText("Resultado do salvamento")).toHaveTextContent(
+      /Salvo na transportadora às \d{2}:\d{2}:\d{2} · versão 1/,
+    );
+    expect(screen.getByRole("button", { name: "Rascunho salvo" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Referência da operação"), {
+      target: { value: "Nova edição" },
+    });
+    expect(screen.getByLabelText("Resultado do salvamento")).toHaveTextContent(
+      "Há alterações pendentes",
+    );
+    expect(screen.getByRole("button", { name: "Salvar rascunho" })).not.toBeDisabled();
+  });
+  it("shows a failed save beside the button and preserves the entered fields", async () => {
+    db.rpc.mockResolvedValue({
+      data: null,
+      error: { code: "42501", message: "Sem permissão para salvar." },
+    });
+    render(
+      <FreightAssistant organizationId="org-a" notes={[]} profile={null} onImport={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Nova operação" }));
+    fireEvent.change(screen.getByLabelText("Referência da operação"), {
+      target: { value: "Não perder" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar rascunho" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Salvamento não confirmado");
+    expect(screen.getByLabelText("Resultado do salvamento")).toHaveTextContent(
+      "Sem permissão para salvar.",
+    );
+    expect(screen.getByLabelText("Referência da operação")).toHaveValue("Não perder");
+    expect(screen.queryByRole("button", { name: "Rascunho salvo" })).not.toBeInTheDocument();
+  });
+
   it("saves a completely blank draft without requiring fiscal or travel data", async () => {
     db.rpc.mockImplementation(
       async (

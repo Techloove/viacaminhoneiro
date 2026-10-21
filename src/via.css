@@ -1292,3 +1292,82 @@ nav {
     gap: 14px;
   }
 }
+.save-feedback {
+  flex: 1 0 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  background: #f2f5ed;
+  color: #6b7b61;
+  min-height: 43px;
+  overflow-wrap: anywhere;
+}
+.save-feedback span {
+  min-width: 0;
+}
+.save-feedback strong {
+  display: block;
+  font-size: 12px;
+}
+.save-feedback small {
+  display: block;
+  font-size: 11px;
+  margin-top: 5px;
+  line-height: 1.6;
+}
+.save-feedback-saved {
+  background: #e5f2d8;
+  color: #315c28;
+  border: 1px solid #bad6a2;
+}
+.save-feedback-error {
+  background: #fff0e9;
+  color: #93442b;
+  border: 1px solid #e6bca9;
+}
+.save-feedback-saving {
+  background: #edf3fa;
+  color: #3b6480;
+}
+.save-feedback > svg {
+  flex-shrink: 0;
+}
+.wizard-footer {
+  flex-wrap: wrap;
+  box-shadow: 0 -5px 15px #19351e05;
+}
+.app-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 30;
+  max-width: 480px;
+  box-shadow: 0 8px 30px #173c2626;
+  align-items: flex-start;
+  font-size: 13px;
+  padding: 18px;
+  margin: 0;
+}
+.app-toast button {
+  flex-shrink: 0;
+}
+.wizard .save-feedback-saved + button ~ button.secondary:disabled {
+  opacity: 0.8;
+}
+@media (max-width: 700px) {
+  .app-toast {
+    left: 14px;
+    right: 14px;
+    bottom: 18px;
+    max-width: none;
+  }
+  .save-feedback {
+    font-size: 11px;
+  }
+  .save-feedback strong {
+    font-size: 11px;
+  }
+}

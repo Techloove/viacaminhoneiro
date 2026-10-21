@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, cleanup } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, cleanup, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("../supabase", () => ({ supabase: null }));
 import App from "../components/via-app";
@@ -28,7 +28,9 @@ describe("Via Caminhoneiro demo", () => {
     fireEvent.change(screen.getByLabelText("Placa"), { target: { value: "INVALID" } });
     fireEvent.change(screen.getByLabelText("Frete bruto (R$)"), { target: { value: "100" } });
     fireEvent.click(screen.getByRole("button", { name: "Salvar rascunho" }));
-    expect(screen.getByText(/Confira a placa/)).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByRole("alert")).toHaveTextContent(
+      /Confira a placa/,
+    );
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });
