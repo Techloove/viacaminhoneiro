@@ -17,6 +17,8 @@ import {
 import { XMLParser, XMLValidator } from "fast-xml-parser";
 import { supabase } from "../supabase";
 
+import FiscalWorkspace from "./fiscal-workspace";
+
 type Trip = {
   id: string;
   origin: string;
@@ -185,6 +187,7 @@ export default function App() {
     ["Visão geral", LayoutDashboard],
     ["Viagens", Route],
     ["Documentos", FileText],
+    ["Central fiscal", ShieldCheck],
     ["Hub de cargas", Store],
     ["Financeiro", Wallet],
   ] as const;
@@ -462,6 +465,7 @@ export default function App() {
               ))}
             </section>
           )}
+          {page === "Central fiscal" && <FiscalWorkspace trips={trips} />}
           {page === "Hub de cargas" && (
             <section className="panel empty">
               <Store size={38} />
