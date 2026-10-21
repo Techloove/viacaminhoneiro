@@ -2,7 +2,6 @@ import React, { useEffect, useState, useCallback } from "react";
 import {
   Truck,
   Building2,
-  LayoutDashboard,
   Route,
   FileText,
   Store,
@@ -11,7 +10,6 @@ import {
   ArrowUpRight,
   Upload,
   X,
-  CheckCircle2,
   ShieldCheck,
   LogOut,
 } from "lucide-react";
@@ -20,6 +18,7 @@ import { supabase } from "../supabase";
 
 import FiscalWorkspace from "./fiscal-workspace";
 
+import AppNavigation from "./app-navigation";
 import Customers from "./customers";
 import PlatformAdmin from "./platform-admin";
 import FiscalConnections from "./fiscal-connections";
@@ -48,6 +47,7 @@ export default function App() {
   const [profile, setProfile] = useState<CarrierProfile | null>(null);
   const updateProfile = useCallback((p: CarrierProfile | null) => setProfile(p), []);
   const [page, setPage] = useState("Visão geral");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [modal, setModal] = useState(false);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [docs, setDocs] = useState<Doc[]>([]);
@@ -274,63 +274,41 @@ export default function App() {
       setNotice((e as Error).message);
     }
   }
-  const items = [
-    ...(isPlatformAdmin ? [["Administração SaaS", Building2] as const] : []),
-    ["Visão geral", LayoutDashboard],
-    ["Viagens", Route],
-    ["Documentos", FileText],
-    ["Clientes", Building2],
-    ["Operação de frete", Truck],
-    ["Minha transportadora", ShieldCheck],
-    ["Motoristas e veículos", Truck],
-    ["Central fiscal", ShieldCheck],
-    ["Integrações fiscais", ShieldCheck],
-    ["Hub de cargas", Store],
-    ["Financeiro", Wallet],
-  ] as const;
+  function navigate(nextPage: string) {
+    if (wizardDirty && !window.confirm("Há alterações não salvas. Deseja descartá-las?"))
+      return false;
+    setWizardDirty(false);
+    setPage(nextPage);
+    return true;
+  }
+  const pageDescriptions: Record<string, string> = {
+    "Visão geral": "Acompanhe sua operação e organize os próximos passos.",
+    Viagens: "Planeje rotas, confira valores e acompanhe cada viagem.",
+    Documentos: "Importe suas notas e prepare as informações fiscais.",
+    Clientes: "Sua base de remetentes, destinatários e tomadores de serviço.",
+    "Operação de frete": "Prepare o frete, da carga à revisão dos documentos.",
+    "Minha transportadora": "Mantenha os dados da sua empresa sempre organizados.",
+    "Motoristas e veículos": "Gerencie as pessoas e os veículos da sua operação.",
+    "Central fiscal": "Confira os requisitos e prepare os documentos de transporte.",
+    "Integrações fiscais": "Gerencie a conexão fiscal exclusiva da sua transportadora.",
+    "Administração SaaS": "Empresas, assinaturas e limites sob seu controle.",
+    "Configuração fiscal da empresa": "Gerencie a integração da empresa selecionada.",
+    Financeiro: "Consulte os valores previstos das viagens cadastradas.",
+    "Hub de cargas": "Prepare sua operação para novas oportunidades de frete.",
+  };
   return (
-    <div className="shell">
-      <aside>
-        <a className="brand" href="#">
-          <span>
-            <Truck size={25} />
-          </span>
-          via<span className="brand-light">caminhoneiro</span>
-        </a>
-        <div className="workspace">
-          SUA OPERAÇÃO
-          <strong>
-            {profile?.name || "Minha transportadora"} <span>BR</span>
-          </strong>
-        </div>
-        <nav>
-          {items.map(([name, Icon]) => (
-            <button
-              className={page === name ? "active" : ""}
-              onClick={() => {
-                if (
-                  !wizardDirty ||
-                  window.confirm("Há alterações não salvas. Deseja descartá-las?")
-                ) {
-                  setWizardDirty(false);
-                  setPage(name);
-                }
-              }}
-              key={name}
-            >
-              <Icon size={20} />
-              {name}
-              {name === "Hub de cargas" && <small>EM BREVE</small>}
-            </button>
-          ))}
-        </nav>
-        <div className="aside-bottom">
-          <ShieldCheck />
-          <strong>Uma estrada mais simples.</strong>
-          <p>Sua operação organizada, do início ao destino.</p>
-          <span>Via Caminhoneiro · versão inicial</span>
-        </div>
-      </aside>
+    <div className={`shell ${sidebarCollapsed ? "sidebar-compact" : ""}`}>
+      <a className="skip-to-content" href="#main-content">
+        Ir para o conteúdo
+      </a>
+      <AppNavigation
+        page={page}
+        company={profile?.name || "Minha transportadora"}
+        isAdmin={isPlatformAdmin}
+        collapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed((value) => !value)}
+        onNavigate={navigate}
+      />
       <main>
         <header>
           <span>
@@ -357,22 +335,28 @@ export default function App() {
             <span className="avatar">VC</span>
           </div>
         </header>
-        <div className="content">
-          <div className="eyebrow">SUA OPERAÇÃO, NO CAMINHO CERTO</div>
+        <div className="content" id="main-content" tabIndex={-1}>
+          <div className="eyebrow">
+            {page === "Administração SaaS" || page === "Configuração fiscal da empresa"
+              ? "GESTÃO DA PLATAFORMA"
+              : "CENTRAL DA TRANSPORTADORA"}
+          </div>
           <div className="title-row">
             <div>
-              <h1>{page === "Visão geral" ? "Tudo pronto para a próxima viagem?" : page}</h1>
-              <p>Menos burocracia. Mais tempo para seguir em frente.</p>
+              <h1>{page === "Visão geral" ? "Visão geral da operação" : page}</h1>
+              <p>{pageDescriptions[page] || "Sua operação organizada em um só lugar."}</p>
             </div>
-            <button
-              className="primary"
-              onClick={() => {
-                setTripError("");
-                setModal(true);
-              }}
-            >
-              <Plus size={18} /> Nova viagem
-            </button>
+            {(page === "Visão geral" || page === "Viagens") && (!supabase || (user && org)) && (
+              <button
+                className="primary"
+                onClick={() => {
+                  setTripError("");
+                  setModal(true);
+                }}
+              >
+                <Plus size={18} /> Nova viagem
+              </button>
+            )}
           </div>
           {!supabase && (
             <div className="banner">
@@ -467,41 +451,59 @@ export default function App() {
                     ))}
                   </section>
                   {page === "Visão geral" && (
-                    <section className="quick">
-                      <div>
-                        <span className="pill">DO DOCUMENTO À ESTRADA</span>
+                    <section className="dashboard-launchpad" aria-label="Acesso rápido">
+                      <div className="launchpad-intro">
+                        <span className="pill">PRÓXIMOS PASSOS</span>
                         <h2>
-                          Sua próxima viagem
+                          Do frete à viagem,
                           <br />
-                          começa aqui.
+                          tudo no seu controle.
                         </h2>
-                        <p>
-                          Reúna as informações do frete e acompanhe
-                          <br />
-                          cada etapa em um único lugar.
-                        </p>
-                        <button
-                          onClick={() => {
-                            setTripError("");
-                            setModal(true);
-                          }}
-                        >
-                          Organizar uma viagem <ArrowUpRight size={18} />
+                        <p>Comece uma operação ou mantenha seus cadastros em dia.</p>
+                        <button className="primary" onClick={() => navigate("Operação de frete")}>
+                          Preparar operação <ArrowUpRight size={17} />
                         </button>
                       </div>
-                      <div className="route-art">
-                        <span className="route-label">ORIGEM</span>
-                        <div className="route-line">
-                          <i />
-                          <span />
-                          <Truck size={44} />
-                          <span />
-                          <i />
-                        </div>
-                        <span className="route-label end">SEU PRÓXIMO DESTINO</span>
-                        <div className="art-note">
-                          <CheckCircle2 size={17} /> Cada etapa, no seu controle
-                        </div>
+                      <div className="launchpad-actions">
+                        {(
+                          [
+                            [
+                              "Documentos",
+                              "Importar NF-e",
+                              "Leia o XML e confira os dados da carga.",
+                              FileText,
+                            ],
+                            [
+                              "Clientes",
+                              "Gerenciar clientes",
+                              "Remetentes, destinatários e tomadores.",
+                              Building2,
+                            ],
+                            [
+                              "Motoristas e veículos",
+                              "Organizar sua frota",
+                              "Motoristas e veículos para cada viagem.",
+                              Truck,
+                            ],
+                            [
+                              "Integrações fiscais",
+                              "Configurar integração",
+                              "Conecte a conta fiscal da sua empresa.",
+                              ShieldCheck,
+                            ],
+                          ] as const
+                        ).map(([target, title, description, Icon]) => (
+                          <button key={target} onClick={() => navigate(target)}>
+                            <span className="launch-icon">
+                              <Icon size={21} />
+                            </span>
+                            <span>
+                              <strong>{title}</strong>
+                              <small>{description}</small>
+                            </span>
+                            <ArrowUpRight size={17} />
+                          </button>
+                        ))}
                       </div>
                     </section>
                   )}

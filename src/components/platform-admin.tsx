@@ -36,6 +36,8 @@ export default function PlatformAdmin({
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sort, setSort] = useState("name");
   const [editing, setEditing] = useState(false);
   const [company, setCompany] = useState<Company | null>(null);
   const [busy, setBusy] = useState(false);
@@ -109,11 +111,24 @@ export default function PlatformAdmin({
       setBusy(false);
     }
   }
-  const filtered = rows.filter((r) =>
-    `${r.name} ${r.cnpj ?? ""}`
-      .toLocaleLowerCase("pt-BR")
-      .includes(query.toLocaleLowerCase("pt-BR")),
-  );
+  const filtered = rows
+    .filter((row) => {
+      const search = query.trim().toLocaleLowerCase("pt-BR");
+      const matchesSearch =
+        `${row.name} ${row.cnpj ?? ""}`.toLocaleLowerCase("pt-BR").includes(search) ||
+        (/^[\d./\s-]+$/.test(search) &&
+          (row.cnpj ?? "").replace(/\D/g, "").includes(search.replace(/\D/g, "")));
+      return (
+        matchesSearch &&
+        (statusFilter === "all" ||
+          (statusFilter === "unconfigured" ? row.status == null : row.status === statusFilter))
+      );
+    })
+    .sort((a, b) =>
+      sort === "fee"
+        ? (b.monthly_fee_cents ?? 0) - (a.monthly_fee_cents ?? 0)
+        : a.name.localeCompare(b.name, "pt-BR"),
+    );
   return (
     <>
       <section className="panel">
@@ -180,10 +195,54 @@ export default function PlatformAdmin({
               placeholder="Busque razão social ou CNPJ"
             />
           </label>
+          <label className="admin-filter-field">
+            Situação
+            <select
+              aria-label="Filtrar empresas por situação"
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+            >
+              <option value="all">Todas as situações</option>
+              {Object.entries(statuses).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+              <option value="unconfigured">Sem assinatura</option>
+            </select>
+          </label>
+          <label className="admin-filter-field">
+            Ordenar por
+            <select
+              aria-label="Ordenar empresas"
+              value={sort}
+              onChange={(event) => setSort(event.target.value)}
+            >
+              <option value="name">Nome da empresa</option>
+              <option value="fee">Maior mensalidade</option>
+            </select>
+          </label>
           <button className="secondary" disabled={loading} onClick={() => setReload((n) => n + 1)}>
             Atualizar
           </button>
         </div>
+        {!loading && (
+          <div className="results-summary">
+            <span>
+              {filtered.length} de {rows.length} empresa(s)
+            </span>
+            {(query || statusFilter !== "all") && (
+              <button
+                onClick={() => {
+                  setQuery("");
+                  setStatusFilter("all");
+                }}
+              >
+                Limpar filtros
+              </button>
+            )}
+          </div>
+        )}
         {loading ? (
           <p>Consultando empresas…</p>
         ) : filtered.length ? (
@@ -195,7 +254,7 @@ export default function PlatformAdmin({
                     <h3>{r.name}</h3>
                     <p>{r.cnpj || "CNPJ a configurar"}</p>
                   </div>
-                  <span className="status">
+                  <span className={`status subscription-status ${r.status || "unconfigured"}`}>
                     {r.status ? statuses[r.status] : "Assinatura não configurada"}
                   </span>
                 </div>
@@ -213,6 +272,16 @@ export default function PlatformAdmin({
                         {r[`used_${kind}`] ?? 0} /{" "}
                         {r.status == null ? "—" : (r[`limit_${kind}`] ?? "ilimitado")}
                       </span>
+                      {r.status != null && r[`limit_${kind}`] !== null && (
+                        <progress
+                          aria-label={`Uso mensal de ${kind.toUpperCase()} da empresa ${r.name}`}
+                          max={Math.max(1, r[`limit_${kind}`] ?? 0)}
+                          value={Math.min(
+                            r[`used_${kind}`] ?? 0,
+                            Math.max(1, r[`limit_${kind}`] ?? 0),
+                          )}
+                        />
+                      )}
                     </div>
                   ))}
                 </div>
