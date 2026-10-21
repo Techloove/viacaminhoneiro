@@ -19,6 +19,7 @@ import { supabase } from "../supabase";
 
 import FiscalWorkspace from "./fiscal-workspace";
 
+import TripDetails from "./trip-details";
 import FleetRegistry from "./fleet-registry";
 import { CarrierSettings, CarrierOperation, type CarrierProfile } from "./carrier-operation";
 
@@ -36,6 +37,8 @@ type Doc = import("./carrier-operation").ReceivedNote;
 const money = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v / 100);
 export default function App() {
+  const [tripRefresh, setTripRefresh] = useState(0);
+  const [selectedTrip, setSelectedTrip] = useState<string | null>(null);
   const [wizardDirty, setWizardDirty] = useState(false);
   const [invoiceKey, setInvoiceKey] = useState("");
   const [profile, setProfile] = useState<CarrierProfile | null>(null);
@@ -101,11 +104,12 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [org, user]);
+  }, [org, user, tripRefresh]);
   useEffect(() => {
     setDocs([]);
     setProfile(null);
     setInvoiceKey("");
+    setSelectedTrip(null);
   }, [user, org]);
   useEffect(() => {
     if (!supabase || !org) return;
@@ -416,6 +420,14 @@ export default function App() {
                       </div>
                     </section>
                   )}
+                  {selectedTrip && trips.find((t) => t.id === selectedTrip) && (
+                    <TripDetails
+                      key={selectedTrip}
+                      organizationId={org}
+                      trip={trips.find((t) => t.id === selectedTrip)!}
+                      onClose={() => setSelectedTrip(null)}
+                    />
+                  )}
                   <section className="panel">
                     <div className="section-title">
                       <div>
@@ -433,6 +445,7 @@ export default function App() {
                               <th>MOTORISTA / VEÍCULO</th>
                               <th>FRETE BRUTO</th>
                               <th>SITUAÇÃO</th>
+                              <th>AÇÃO</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -451,6 +464,17 @@ export default function App() {
                                 <td>{money(t.freight_cents)}</td>
                                 <td>
                                   <span className="status">Rascunho</span>
+                                </td>
+                                <td>
+                                  <button
+                                    className="secondary"
+                                    onClick={() => {
+                                      setSelectedTrip(t.id);
+                                      setPage("Viagens");
+                                    }}
+                                  >
+                                    Ver viagem
+                                  </button>
                                 </td>
                               </tr>
                             ))}
@@ -519,6 +543,12 @@ export default function App() {
                   key={org ?? "demo"}
                   organizationId={org}
                   onDirtyChange={setWizardDirty}
+                  onTripCreated={(tripId) => {
+                    setWizardDirty(false);
+                    setTripRefresh((n) => n + 1);
+                    setSelectedTrip(tripId);
+                    setPage("Viagens");
+                  }}
                   notes={docs}
                   profile={profile}
                   onImport={() => setPage("Documentos")}

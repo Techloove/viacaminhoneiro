@@ -1222,3 +1222,73 @@ nav {
     gap: 12px;
   }
 }
+.planning-conversion {
+  padding: 22px;
+  background: #edf4e4;
+  border: 1px solid #dce8ce;
+  border-radius: 9px;
+  margin: 25px 0;
+}
+.planning-conversion h3 {
+  margin: 0 0 10px;
+}
+.planning-conversion button {
+  margin-top: 16px;
+}
+.planning-conversion li {
+  font-size: 12px;
+  line-height: 1.8;
+  color: #677a5b;
+}
+.trip-details {
+  border: 1px solid #bbcdb0;
+}
+.trip-details h3 {
+  font-size: 17px;
+  margin: 24px 0 15px;
+}
+.trip-details .review-grid strong {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.trip-details small {
+  font-size: 11px;
+  color: #819374;
+  overflow-wrap: anywhere;
+}
+.document-planning-list {
+  display: grid;
+  gap: 10px;
+}
+.document-planning-list article {
+  display: flex;
+  gap: 14px;
+  border: 1px solid #e1e9d8;
+  padding: 17px;
+  border-radius: 8px;
+}
+.document-planning-list article > svg {
+  width: 20px;
+  min-width: 20px;
+  color: #819571;
+}
+.document-planning-list strong {
+  font-size: 12px;
+}
+.document-planning-list p {
+  font-size: 12px;
+  margin-top: 7px;
+}
+.document-planning-list .note-key {
+  word-break: break-all;
+}
+.trip-details .event-checklist p {
+  white-space: pre-wrap;
+}
+@media (max-width: 700px) {
+  .trip-details .section-title {
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+}

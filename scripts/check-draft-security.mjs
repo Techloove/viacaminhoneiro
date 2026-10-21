@@ -10,6 +10,7 @@ for (const name of [
   "202610210002_carrier_workflow.sql",
   "202610210003_freight_drafts.sql",
   "202610210004_fleet_registry.sql",
+  "202610210005_trip_planning.sql",
 ])
   await db.exec(readFileSync(new URL("../supabase/migrations/" + name, import.meta.url), "utf8"));
 const a = "11111111-1111-4111-8111-111111111111",
@@ -166,13 +167,72 @@ await rejects(() => db.query(`delete from public.carrier_drivers where id=$1`, [
 await db.exec("reset role; set role anon;");
 for (const table of ["carrier_drivers", "carrier_vehicles"])
   await rejects(() => db.query("select * from public." + table), "42501");
+
+// Atomic draft-to-trip conversion and immutable original snapshot.
+await asUser(a);
+const convert = (draftId, org, revision) =>
+  db.query("select public.create_trip_from_draft($1,$2,$3) as result", [draftId, org, revision]);
+await rejects(() => convert(draft, oa, 2), "22023");
+assert.equal((await db.query("select * from public.trips")).rows.length, 0);
+const source = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+const payload = {
+  reference: "FRETE ORIGINAL",
+  origin: "Curitiba / PR",
+  destination: "Santos / SP",
+  driver: "Motorista teste",
+  plate: "ABC1D23",
+  freight: "1234.56",
+  cargo: "Carga teste",
+};
+await db.query("select public.save_freight_draft($1,$2,$3,4,0)", [
+  source,
+  oa,
+  JSON.stringify(payload),
+]);
+await rejects(() => convert(source, oa, 99), "40001");
+assert.equal((await db.query("select * from public.trips")).rows.length, 0);
+const first = (await convert(source, oa, 1)).rows[0].result;
+assert.equal(first.created, true);
+assert.equal(
+  (await db.query("select freight_cents,status from public.trips")).rows[0].freight_cents,
+  123456,
+);
+assert.equal((await db.query("select status from public.trips")).rows[0].status, "draft");
+await db.query("select public.save_freight_draft($1,$2,$3,4,1)", [
+  source,
+  oa,
+  JSON.stringify({ ...payload, reference: "EDIÇÃO POSTERIOR", freight: "9999.00" }),
+]);
+const repeated = (await convert(source, oa, 1)).rows[0].result;
+assert.equal(repeated.trip_id, first.trip_id);
+assert.equal(repeated.created, false);
+assert.equal(repeated.source_revision, 1);
+assert.equal((await db.query("select * from public.trips")).rows.length, 1);
+assert.equal(
+  (await db.query("select payload from public.trip_plans")).rows[0].payload.reference,
+  "FRETE ORIGINAL",
+);
+await rejects(() => db.query("update public.trip_plans set source_revision=99"), "42501");
+await asUser(b);
+assert.equal((await db.query("select * from public.trip_plans")).rows.length, 0);
+await rejects(() => convert(source, oa, 1), "42501");
+await rejects(() => convert(source, ob, 1), "42501");
+await asUser(v);
+assert.equal((await db.query("select * from public.trip_plans")).rows.length, 1);
+await rejects(() => convert(source, oa, 1), "42501");
+await db.exec("reset role; set role anon;");
+await rejects(() => db.query("select * from public.trip_plans"), "42501");
+await rejects(() => convert(source, oa, 1), "42501");
+console.log(
+  "PASS: atomic planning conversion, exact cents, stale revision rejected, repeat without duplication, original snapshot preserved, tenant/viewer/anonymous restrictions.",
+);
 await db.exec("reset role;");
 await db.query("delete from public.memberships where organization_id=$1 and user_id=$2", [oa, a]);
 await asUser(a);
-for (const table of ["freight_drafts", "carrier_drivers", "carrier_vehicles"])
+for (const table of ["freight_drafts", "carrier_drivers", "carrier_vehicles", "trip_plans"])
   assert.equal((await db.query("select * from public." + table)).rows.length, 0);
 await rejects(() => save(oa, 2), "42501");
-console.log("PASS: all 4 migrations applied to isolated PostgreSQL (PGlite).");
+console.log("PASS: all 5 migrations applied to isolated PostgreSQL (PGlite).");
 console.log(
   "PASS: driver/vehicle tenant isolation, scoped uniqueness, CPF check, blocked cross-tenant read/update/insert/transfer, viewer read-only, inactivation, no delete, anonymous denied, membership revocation.",
 );

@@ -25,6 +25,91 @@ afterEach(() => {
   db.rpc.mockReset();
   db.listError = null;
 });
+describe("Trip creation from saved drafts", () => {
+  const ready = () => ({
+    id: "draft-ready",
+    organization_id: "org-a",
+    payload: {
+      ...emptyFreightDraft(),
+      reference: "FRETE-PRONTO",
+      origin: "Curitiba / PR",
+      destination: "Santos / SP",
+      driver: "Motorista teste",
+      plate: "ABC1D23",
+      freight: "1234.56",
+    },
+    revision: 2,
+    current_step: 4,
+    updated_at: new Date().toISOString(),
+  });
+  it("creates planning from the saved revision and keeps fiscal transmission disabled", async () => {
+    db.rows = [ready()];
+    db.rpc.mockResolvedValue({
+      data: { trip_id: "trip-created", created: true, source_revision: 2 },
+      error: null,
+    });
+    const onTripCreated = vi.fn();
+    render(
+      <FreightAssistant
+        organizationId="org-a"
+        notes={[]}
+        profile={null}
+        onImport={vi.fn()}
+        onTripCreated={onTripCreated}
+      />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Continuar operação" }));
+    fireEvent.click(screen.getByRole("button", { name: "Criar ou abrir viagem de planejamento" }));
+    await waitFor(() => expect(onTripCreated).toHaveBeenCalledWith("trip-created"));
+    expect(db.rpc).toHaveBeenCalledWith("create_trip_from_draft", {
+      p_draft_id: "draft-ready",
+      p_organization_id: "org-a",
+      p_expected_revision: 2,
+    });
+    expect(screen.getByRole("button", { name: /Emitir CT-e/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Registrar CIOT/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Emitir MDF-e/ })).toBeDisabled();
+  });
+  it("keeps incomplete drafts savable but prevents trip conversion", async () => {
+    db.rows = [{ ...ready(), payload: emptyFreightDraft() }];
+    render(
+      <FreightAssistant organizationId="org-a" notes={[]} profile={null} onImport={vi.fn()} />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Continuar operação" }));
+    expect(
+      screen.getByRole("button", { name: "Criar ou abrir viagem de planejamento" }),
+    ).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Observações"), {
+      target: { value: "Continuar depois" },
+    });
+    expect(screen.getByRole("button", { name: "Salvar progresso" })).not.toBeDisabled();
+    expect(db.rpc).not.toHaveBeenCalled();
+  });
+  it("keeps the draft when the server rejects a stale conversion", async () => {
+    db.rows = [ready()];
+    db.rpc.mockResolvedValue({
+      data: null,
+      error: { code: "40001", message: "Rascunho alterado em outra sessão." },
+    });
+    const onTripCreated = vi.fn();
+    render(
+      <FreightAssistant
+        organizationId="org-a"
+        notes={[]}
+        profile={null}
+        onImport={vi.fn()}
+        onTripCreated={onTripCreated}
+      />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Continuar operação" }));
+    fireEvent.click(screen.getByRole("button", { name: "Criar ou abrir viagem de planejamento" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Rascunho alterado em outra sessão.",
+    );
+    expect(onTripCreated).not.toHaveBeenCalled();
+    expect(screen.getByText("FRETE-PRONTO")).toBeInTheDocument();
+  });
+});
 describe("Draft persistence feedback", () => {
   it("saves a completely blank draft without requiring fiscal or travel data", async () => {
     db.rpc.mockImplementation(

@@ -169,6 +169,7 @@ export function CarrierOperation({
   onImport,
   organizationId = null,
   onDirtyChange,
+  onTripCreated,
 }: {
   notes: ReceivedNote[];
   profile: CarrierProfile | null;
@@ -176,6 +177,7 @@ export function CarrierOperation({
   organizationId?: string | null;
   onDirtyChange?: (dirty: boolean) => void;
   onFiscal?: (key: string) => void;
+  onTripCreated?: (tripId: string) => void;
 }) {
   return (
     <FreightAssistant
@@ -184,6 +186,7 @@ export function CarrierOperation({
       onImport={onImport}
       organizationId={organizationId}
       {...(onDirtyChange ? { onDirtyChange } : {})}
+      {...(onTripCreated ? { onTripCreated } : {})}
     />
   );
 }

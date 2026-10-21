@@ -99,3 +99,13 @@ Na etapa **Viagem e CIOT** do assistente, selecione um motorista, veículo de tr
 As telas carregam até 1.000 registros de cada categoria por transportadora, com busca sobre esse conjunto. Owner, manager e operator podem cadastrar/editar/inativar; viewer apenas consulta. Inativos ficam disponíveis no cadastro mediante filtro, mas não nas seleções para novas operações. CPF e placa são únicos dentro da organização, podendo existir em empresas diferentes. RLS restringe leitura/escrita por membership; um trigger impede mover cadastros entre empresas. As cópias históricas nos rascunhos não são apagadas pela inativação.
 
 `npm run test:db` passou com as quatro migrações em PostgreSQL local isolado: leitura e alteração entre empresas negadas, duplicidade por empresa, consulta sem escrita para viewer, acesso anônimo negado e revogação após remover membership. Isso não significa que contas de teste foram criadas no Supabase real; execute também o roteiro em `docs/frota-e-isolamento.md` após aplicar a quarta migração.
+
+## Criar viagem a partir de operação salva
+
+Aplique **somente** `supabase/migrations/202610210005_trip_planning.sql` após as migrações 001–004. Na revisão do assistente, salve o progresso e clique em **Criar ou abrir viagem de planejamento**. Para essa conversão, origem, destino, motorista, placa e frete positivo em reais com até duas casas decimais devem estar preenchidos. As demais pendências fiscais continuam visíveis e não são tratadas como resolvidas. Rascunhos continuam podendo ser salvos incompletos.
+
+O RPC `create_trip_from_draft` verifica organização, papel e revisão, cria a viagem e a cópia da operação na mesma transação, e impede duas viagens para o mesmo rascunho. Repetir a ação devolve a viagem existente. Uma edição posterior do rascunho não atualiza silenciosamente o resumo da viagem criada.
+
+A lista de Viagens tem ação **Ver viagem**, com carga, rota, motorista, composição, valor bruto, chave NF-e informada e pendências. As viagens antigas cadastradas diretamente continuam funcionando, sem resumo de operação vinculado. CT-e, CIOT e MDF-e permanecem sem confirmação externa; criar planejamento não autoriza saída, não registra pagamento e não encerra documentos.
+
+`npm run test:db` agora aplica as cinco migrações em PostgreSQL isolado e verifica conversão sem duplicidade, valor em centavos, rejeição de revisão desatualizada, conservação do resumo original e acesso por organização. Depois da migração no projeto real, siga `docs/viagem-planejada.md`; os testes locais não confirmam a ativação no Supabase hospedado.

@@ -10,6 +10,7 @@ import {
   Search,
   X,
 } from "lucide-react";
+import { tripPlanningIssues, tripPlanError, type ConversionResult } from "../lib/trip-planning";
 import FleetPicker from "./fleet-picker";
 import { supabase } from "../supabase";
 import {
@@ -27,6 +28,7 @@ type Props = {
   profile: CarrierProfile | null;
   onImport: () => void;
   onDirtyChange?: (dirty: boolean) => void;
+  onTripCreated?: (tripId: string) => void;
 };
 function explain(error: { message: string; code?: string }) {
   return ["PGRST205", "42P01", "PGRST202", "42883"].includes(error.code ?? "")
@@ -39,6 +41,7 @@ export default function FreightAssistant({
   profile,
   onImport,
   onDirtyChange,
+  onTripCreated,
 }: Props) {
   const [draft, setDraft] = useState<FreightDraft>(emptyFreightDraft);
   const [id, setId] = useState("");
@@ -111,6 +114,7 @@ export default function FreightAssistant({
   const note = notes.find((n) => n.key === selected);
   const match = !!note?.carrierCnpj && !!profile?.cnpj && note.carrierCnpj === profile.cnpj;
   const issues = preparationIssues(draft);
+  const planningIssues = tripPlanningIssues(draft);
   function change<K extends keyof FreightDraft>(key: K, value: FreightDraft[K]) {
     setDraft((d) => ({ ...d, [key]: value }));
     setDirty(true);
@@ -192,6 +196,41 @@ export default function FreightAssistant({
       );
     } catch (e) {
       setMessage(explain(e as { message: string; code?: string }));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function createPlanningTrip() {
+    if (busy || dirty || revision < 1 || planningIssues.length || !supabase || !organizationId)
+      return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const { data, error } = await supabase.rpc("create_trip_from_draft", {
+        p_draft_id: id,
+        p_organization_id: organizationId,
+        p_expected_revision: revision,
+      });
+      if (error) throw error;
+      const result = data as ConversionResult;
+      if (
+        !result ||
+        typeof result.trip_id !== "string" ||
+        !result.trip_id ||
+        typeof result.created !== "boolean" ||
+        !Number.isInteger(result.source_revision)
+      )
+        throw Error(
+          "Não foi possível confirmar a criação. Reabra o rascunho e tente novamente; a mesma operação não deve gerar outra viagem.",
+        );
+      setMessage(
+        result.created
+          ? "Viagem de planejamento criada. Nenhuma emissão fiscal foi realizada."
+          : "Esta operação já possui uma viagem. A cópia existente foi preservada.",
+      );
+      onTripCreated?.(result.trip_id);
+    } catch (error) {
+      setMessage(tripPlanError(error as { message: string; code?: string }));
     } finally {
       setBusy(false);
     }
@@ -519,6 +558,40 @@ export default function FreightAssistant({
                     onChange={(e) => change("notes", e.target.value)}
                   />
                 </label>
+                <div className="planning-conversion">
+                  <h3>Levar esta operação para Viagens</h3>
+                  <p>
+                    Cria uma única viagem de planejamento com uma cópia da versão salva. Repetir
+                    abre a viagem existente; editar o rascunho depois não altera a cópia.
+                  </p>
+                  {planningIssues.length > 0 && (
+                    <ul>
+                      {planningIssues.map((issue) => (
+                        <li key={issue}>{issue}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {(dirty || revision < 1) && (
+                    <p className="hint">
+                      Salve o progresso antes de criar a viagem. Os demais dados fiscais podem
+                      continuar pendentes.
+                    </p>
+                  )}
+                  <button
+                    className="primary"
+                    onClick={() => void createPlanningTrip()}
+                    disabled={
+                      busy ||
+                      dirty ||
+                      revision < 1 ||
+                      planningIssues.length > 0 ||
+                      !supabase ||
+                      !organizationId
+                    }
+                  >
+                    Criar ou abrir viagem de planejamento
+                  </button>
+                </div>
                 <div className="fiscal-locks">
                   <button className="primary" disabled>
                     Emitir CT-e · integração pendente
