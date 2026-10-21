@@ -22,3 +22,38 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+
+
+## Base Via Caminhoneiro
+
+
+
+Node.js 24 e Bun 1.4.3 foram utilizados na integração. O lockfile canônico é bun.lock.
+
+```sh
+bun install --frozen-lockfile
+bun run dev -- --host 0.0.0.0 --port 5173
+npm run build
+```
+
+Sem variáveis, o aplicativo funciona como demonstração: viagens e leitura de XML ficam apenas na memória e são perdidas ao recarregar. Nenhuma emissão fiscal é executada. Hub e apuração financeira ainda não estão implementados.
+
+## Supabase
+
+1. Crie um projeto de homologação e aplique `supabase/migrations/202610210001_initial.sql` com as ferramentas de migração do Supabase ou SQL Editor.
+2. Copie `.env.example` para `.env.local` e configure URL e chave pública/publishable do projeto. Nunca utilize service role no frontend.
+3. Crie um usuário de teste no Supabase Auth. O login usa e-mail e senha; esta versão não inclui cadastro ou recuperação de senha.
+4. Reinicie o Vite, entre e crie sua operação. Cadastre uma viagem, recarregue e confirme persistência.
+5. Antes de produção, valide RLS com dois usuários de organizações diferentes. Usuário sem membership não deve listar viagens; viewer não pode inserir; driver não tem acesso nesta fase. Não habilite acesso de motorista até existir atribuição por viagem.
+
+O esquema contém organizações, associações e viagens em rascunho. Não inclui ainda cadastro fiscal completo, arquivos persistentes, credenciais de provedores ou fila. A migração foi preparada mas não executada em um banco nesta sessão.
+
+## Importação de NF-e
+
+O XML é lido localmente, com limite de 2 MB e rejeição de DOCTYPE/ENTITY. A leitura extrai emitente, número e chave; não verifica assinatura digital, autorização, titularidade ou validade fiscal. Não envia dados ao fornecedor nem arquiva no Supabase.
+
+## Integrações pendentes
+
+O contrato FazNota analisado não especifica CIOT nem todos os campos/consultas de CT-e e MDF-e. Obter contrato completo e homologação antes de integrar emissões. Não inserir tokens fiscais em variáveis VITE_, que são públicas.
+
+O projeto Lovable informado é https://lovable.dev/projects/7a534a95-85fa-412c-9663-21a827baba13. A integração de código usa a branch main do GitHub, preservando a estrutura TanStack Start e o histórico do Lovable. A publicação do site é gerenciada no Lovable.
