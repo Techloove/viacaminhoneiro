@@ -46,7 +46,7 @@ const save = (org, rev, payload = { reference: "TESTE" }) =>
     rev,
   ]);
 await asUser(a);
-assert.equal((await save(oa, 0)).rows[0].saved.revision, 1);
+assert.equal((await save(oa, 0, {})).rows[0].saved.revision, 1);
 assert.equal((await save(oa, 1)).rows[0].saved.revision, 2);
 await rejects(() => save(oa, 1), "40001");
 assert.equal((await db.query("select revision from public.freight_drafts")).rows[0].revision, 2);

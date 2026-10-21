@@ -260,19 +260,33 @@ export default function FreightAssistant({
                 transmissão
               </p>
             </div>
-            <button
-              className="icon"
-              aria-label="Fechar assistente"
-              disabled={busy}
-              onClick={() => {
-                if (canLeave()) {
-                  setEditing(false);
-                  setDirty(false);
-                }
-              }}
-            >
-              <X />
-            </button>
+            <div className="wizard-header-actions">
+              <button
+                className="primary"
+                onClick={() => void save()}
+                disabled={busy || (!dirty && revision > 0)}
+              >
+                <Save size={15} />
+                {busy ? "Salvando progresso…" : "Salvar progresso"}
+              </button>
+              <button
+                className="icon"
+                aria-label="Fechar assistente"
+                disabled={busy}
+                onClick={() => {
+                  if (canLeave()) {
+                    setEditing(false);
+                    setDirty(false);
+                  }
+                }}
+              >
+                <X />
+              </button>
+            </div>
+          </div>
+          <div className="banner">
+            Pode salvar agora, mesmo sem todos os dados. As pendências servem para orientar a
+            revisão e não bloqueiam o rascunho. Complete depois em “Retomar uma operação”.
           </div>
           <nav className="wizard-nav" aria-label="Etapas da operação">
             {wizardSteps.map((label, i) => (

@@ -1121,3 +1121,18 @@ nav {
     font-size: 17px;
   }
 }
+.wizard-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+@media (max-width: 700px) {
+  .wizard .section-title {
+    flex-wrap: wrap;
+  }
+  .wizard-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}

@@ -26,6 +26,49 @@ afterEach(() => {
   db.listError = null;
 });
 describe("Draft persistence feedback", () => {
+  it("saves a completely blank draft without requiring fiscal or travel data", async () => {
+    db.rpc.mockImplementation(
+      async (
+        _name: string,
+        args: {
+          p_id: string;
+          p_organization_id: string;
+          p_payload: unknown;
+          p_current_step: number;
+        },
+      ) => ({
+        data: {
+          id: args.p_id,
+          organization_id: args.p_organization_id,
+          payload: args.p_payload,
+          current_step: args.p_current_step,
+          revision: 1,
+          updated_at: new Date().toISOString(),
+        },
+        error: null,
+      }),
+    );
+    render(
+      <FreightAssistant organizationId="org-a" notes={[]} profile={null} onImport={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Nova operação" }));
+    expect(screen.getByText(/Pode salvar agora, mesmo sem todos os dados/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Salvar progresso" }));
+    expect(await screen.findByText(/Rascunho salvo na transportadora/)).toBeInTheDocument();
+    expect(db.rpc).toHaveBeenCalledWith(
+      "save_freight_draft",
+      expect.objectContaining({
+        p_payload: expect.objectContaining({
+          reference: "",
+          invoiceKey: "",
+          freight: "",
+          plate: "",
+        }),
+        p_expected_revision: 0,
+      }),
+    );
+  });
+
   it("reloads the saved organization draft after remount and keeps its saved step", async () => {
     db.rpc.mockImplementation(
       async (
