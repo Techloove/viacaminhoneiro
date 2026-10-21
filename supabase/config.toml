@@ -1,0 +1,6 @@
+project_id = "nlteuqcyatsdjcuacguq"
+
+[functions.faznota-connection]
+# JWT validation is implemented via Supabase Auth getUser in the handler.
+# This supports current asymmetric Auth JWTs; no action is anonymous.
+verify_jwt = false

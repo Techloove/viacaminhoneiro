@@ -109,3 +109,7 @@ O RPC `create_trip_from_draft` verifica organização, papel e revisão, cria a 
 A lista de Viagens tem ação **Ver viagem**, com carga, rota, motorista, composição, valor bruto, chave NF-e informada e pendências. As viagens antigas cadastradas diretamente continuam funcionando, sem resumo de operação vinculado. CT-e, CIOT e MDF-e permanecem sem confirmação externa; criar planejamento não autoriza saída, não registra pagamento e não encerra documentos.
 
 `npm run test:db` agora aplica as cinco migrações em PostgreSQL isolado e verifica conversão sem duplicidade, valor em centavos, rejeição de revisão desatualizada, conservação do resumo original e acesso por organização. Depois da migração no projeto real, siga `docs/viagem-planejada.md`; os testes locais não confirmam a ativação no Supabase hospedado.
+
+## Administração SaaS e conexões individuais
+
+Veja [o guia de ativação multiempresa](docs/administracao-saas.md) para as migrações 006 e 007, ativação explícita do administrador e publicação da função fiscal no Supabase. Lovable publica o frontend; banco e função precisam ser ativados separadamente.

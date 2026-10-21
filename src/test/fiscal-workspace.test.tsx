@@ -31,6 +31,8 @@ describe("Fiscal preparation", () => {
     ).toBeDisabled();
     expect(screen.getByText(/Encerrar MDF-e não encerra CIOT/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "Integração" }));
-    expect(screen.getByText("Nenhuma rota identificada no contrato anexado.")).toBeInTheDocument();
+    expect(
+      screen.getByText("TAC e equiparado a TAC não são atendidos por esse caminho."),
+    ).toBeInTheDocument();
   });
 });

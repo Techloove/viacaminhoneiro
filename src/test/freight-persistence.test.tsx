@@ -8,13 +8,18 @@ const db = vi.hoisted(() => ({
 }));
 vi.mock("../supabase", () => ({
   supabase: {
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          order: () => ({ limit: async () => ({ data: db.rows, error: db.listError }) }),
+    from: (table: string) => {
+      const query = {
+        select: () => query,
+        eq: () => query,
+        order: () => query,
+        limit: async () => ({
+          data: table === "freight_drafts" ? db.rows : [],
+          error: table === "freight_drafts" ? db.listError : null,
         }),
-      }),
-    }),
+      };
+      return query;
+    },
     rpc: db.rpc,
   },
 }));

@@ -34,8 +34,8 @@ const capabilities = [
   ],
   [
     "CIOT",
-    "Registro e conclusão da operação de transporte",
-    "Nenhuma rota identificada no contrato anexado.",
+    "Emissão, consulta e eventos para ETC com frota própria (API 3.13.0)",
+    "TAC e equiparado a TAC não são atendidos por esse caminho.",
   ],
 ];
 export default function FiscalWorkspace({
@@ -310,7 +310,7 @@ export default function FiscalWorkspace({
           <div className="section-title">
             <div>
               <h2>FazNota · API v3</h2>
-              <p>Referência atual: OpenAPI oficial 3.10.0, conferido na documentação do FazNota.</p>
+              <p>Referência atual: OpenAPI oficial 3.13.0, conferido na documentação do FazNota.</p>
             </div>
             <Settings2 />
           </div>
@@ -328,7 +328,10 @@ export default function FiscalWorkspace({
             <li>Supabase: autenticação, organizações e persistência dos dados fiscais.</li>
             <li>Backend seguro com credenciais por emissor, fila e conciliação de resultados.</li>
             <li>Contrato completo e homologação de CT-e/MDF-e com o fornecedor.</li>
-            <li>Parceiro e contrato específicos para CIOT.</li>
+            <li>
+              Validar elegibilidade do CIOT pela conta FazNota; TAC/equiparado exige instituição de
+              pagamento.
+            </li>
           </ol>
           <p>
             Credenciais e certificados não devem ser enviados pelo chat nem armazenados no

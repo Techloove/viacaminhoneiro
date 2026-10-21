@@ -3,7 +3,12 @@ import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 const db = new PGlite();
 await db.exec(
-  `create role anon; create role authenticated; create schema auth; create table auth.users(id uuid primary key); create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$; grant usage on schema auth to authenticated,anon; grant execute on function auth.uid() to authenticated,anon;`,
+  `create role anon; create role authenticated; create role service_role; create schema auth; create table auth.users(id uuid primary key,email text); create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$; grant usage on schema auth to authenticated,anon; grant execute on function auth.uid() to authenticated,anon;`,
+);
+// Test-only Vault interface. Encryption is provided by Supabase Vault in production,
+// not verified by PGlite. These fixtures use fake tokens only and never reach a real project.
+await db.exec(
+  `create schema vault; create table vault.secrets(id uuid primary key default gen_random_uuid(),secret text not null); create view vault.decrypted_secrets as select id,secret as decrypted_secret from vault.secrets; create function vault.create_secret(secret text) returns uuid language sql as $$insert into vault.secrets(secret) values(secret) returning id$$; create function vault.update_secret(secret_id uuid,new_secret text) returns void language sql as $$update vault.secrets set secret=new_secret where id=secret_id$$; revoke all on schema vault from public,anon,authenticated;`,
 );
 for (const name of [
   "202610210001_initial.sql",
@@ -11,15 +16,22 @@ for (const name of [
   "202610210003_freight_drafts.sql",
   "202610210004_fleet_registry.sql",
   "202610210005_trip_planning.sql",
+  "202610210006_faznota_connections.sql",
+  "202610210007_saas_administration.sql",
 ])
-  await db.exec(readFileSync(new URL("../supabase/migrations/" + name, import.meta.url), "utf8"));
+  await db.exec(
+    readFileSync(new URL("../supabase/migrations/" + name, import.meta.url), "utf8").replace(
+      "create extension if not exists supabase_vault with schema vault;",
+      "-- Test-only Vault interface supplied above.",
+    ),
+  );
 const a = "11111111-1111-4111-8111-111111111111",
   b = "22222222-2222-4222-8222-222222222222",
   v = "33333333-3333-4333-8333-333333333333";
 const oa = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   ob = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
   draft = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
-await db.query(`insert into auth.users values ($1),($2),($3)`, [a, b, v]);
+await db.query(`insert into auth.users(id) values ($1),($2),($3)`, [a, b, v]);
 await db.query(
   `insert into public.organizations(id,name) values($1,'Transportadora A'),($2,'Transportadora B')`,
   [oa, ob],
@@ -226,13 +238,141 @@ await rejects(() => convert(source, oa, 1), "42501");
 console.log(
   "PASS: atomic planning conversion, exact cents, stale revision rejected, repeat without duplication, original snapshot preserved, tenant/viewer/anonymous restrictions.",
 );
+
+// Service-only credential operations; a browser cannot forge the actor RPC parameter.
+await asUser(a);
+await rejects(
+  () =>
+    db.query("select public.faznota_store_credential($1,$2,'fake-provider-token','unconfirmed')", [
+      oa,
+      a,
+    ]),
+  "42501",
+);
+await rejects(() => db.query("select public.faznota_begin_auth_check($1,$2)", [oa, a]), "42501");
+await rejects(() => db.query("select * from via_fiscal_private.faznota_credentials"), "42501");
+await db.exec("reset role; set role service_role;");
+const stored = (
+  await db.query(
+    "select public.faznota_store_credential($1,$2,'fake-provider-token','unconfirmed') as result",
+    [oa, a],
+  )
+).rows[0].result;
+assert.equal(stored.credential_configured, true);
+assert.equal(stored.authentication_state, "unchecked");
+assert.ok(!JSON.stringify(stored).includes("fake-provider-token"));
+await rejects(
+  () =>
+    db.query("select public.faznota_store_credential($1,$2,'fake-provider-token','unconfirmed')", [
+      oa,
+      b,
+    ]),
+  "42501",
+);
+const credential = (
+  await db.query("select public.faznota_begin_auth_check($1,$2) as result", [oa, a])
+).rows[0].result;
+assert.equal(credential.token, "fake-provider-token");
+await rejects(() => db.query("select public.faznota_begin_auth_check($1,$2)", [oa, a]), "P0001");
+await db.query("select public.faznota_record_auth_check($1,$2,$3,true,'3.13.0')", [
+  oa,
+  a,
+  credential.generation,
+]);
+await asUser(a);
+const metadata = (await db.query("select * from public.fiscal_connections")).rows[0];
+assert.equal(metadata.authentication_state, "authenticated");
+assert.ok(!JSON.stringify(metadata).includes("fake-provider-token"));
+await rejects(
+  () => db.query("update public.fiscal_connections set authentication_state='authenticated'"),
+  "42501",
+);
+await asUser(b);
+assert.equal((await db.query("select * from public.fiscal_connections")).rows.length, 0);
+assert.equal((await db.query("select * from public.fiscal_connection_events")).rows.length, 0);
+await asUser(v);
+assert.equal((await db.query("select * from public.fiscal_connections")).rows.length, 1);
+assert.equal((await db.query("select * from public.fiscal_connection_events")).rows.length, 0);
+await db.exec("reset role; set role service_role;");
+await db.query("select public.faznota_store_credential($1,$2,'fake-rotated-token','unconfirmed')", [
+  oa,
+  a,
+]);
+await rejects(
+  () =>
+    db.query("select public.faznota_record_auth_check($1,$2,$3,true,'3.13.0')", [
+      oa,
+      a,
+      credential.generation,
+    ]),
+  "40001",
+);
+await db.query("select public.faznota_disconnect($1,$2)", [oa, a]);
+await rejects(() => db.query("select public.faznota_begin_auth_check($1,$2)", [oa, a]), "22023");
+await asUser(a);
+assert.equal(
+  (await db.query("select * from public.fiscal_connections")).rows[0].credential_configured,
+  false,
+);
+await db.exec("reset role; set role anon;");
+await rejects(() => db.query("select * from public.fiscal_connections"), "42501");
+await rejects(() => db.query("select public.faznota_begin_auth_check($1,$2)", [oa, a]), "42501");
+console.log(
+  "PASS: service-only credentials, metadata isolation, no browser token access, audit access, test throttling, rotation conflict and disconnect (Vault interface mocked; no encryption claim).",
+);
+await db.exec("reset role;");
+const root = "99999999-9999-4999-8999-999999999999";
+await db.query("insert into auth.users(id,email) values($1,'admin@example.test')", [root]);
+await db.query("insert into via_platform_private.admins(user_id) values($1)", [root]);
+await asUser(a);
+await rejects(() => db.query("select public.platform_list_companies()"), "42501");
+await rejects(() => db.query("insert into via_platform_private.admins(user_id) values($1)",[a]), "42501");
+await db.query("insert into public.carrier_customers(organization_id,name,document) values($1,'Cliente A','52998224725')",[oa]);
+await asUser(b);
+assert.equal((await db.query("select * from public.carrier_customers")).rows.length,0);
+await rejects(() => db.query("insert into public.carrier_customers(organization_id,name,document) values($1,'Intruso','52998224725')",[oa]), "42501");
+await asUser(root);
+assert.equal((await db.query("select * from public.carrier_customers")).rows.length,0);
+assert.equal((await db.query("select * from public.trip_plans")).rows.length,0);
+assert.equal((await db.query("select public.platform_list_companies() as companies")).rows[0].companies.length,2);
+await db.query("select public.platform_save_company($1,'Transportadora A','11222333000181',null,'Inicial','active',19900,5,1,0,null)",[oa]);
+await db.exec("reset role; set role service_role");
+const operation = "88888888-8888-4888-8888-888888888888";
+const reserved = (await db.query("select public.platform_reserve_document($1,$2,'cte',$3) as result",[oa,a,operation])).rows[0].result;
+assert.equal(reserved.reused,false);
+assert.equal((await db.query("select public.platform_reserve_document($1,$2,'cte',$3) as result",[oa,a,operation])).rows[0].result.reused,true);
+await rejects(() => db.query("select public.platform_reserve_document($1,$2,'cte',gen_random_uuid())",[oa,a]),"P0001");
+await rejects(() => db.query("select public.platform_reserve_document($1,$2,'ciot',gen_random_uuid())",[oa,a]),"P0001");
+await rejects(() => db.query("select public.platform_reserve_document($1,$2,'mdfe',gen_random_uuid())",[oa,root]),"42501");
+await db.query("select public.platform_reserve_document($1,$2,'mdfe',gen_random_uuid())",[oa,a]);
+await db.query("select public.platform_complete_document($1,$2,true)",[oa,reserved.reservation_id]);
+await db.query("select public.platform_complete_document($1,$2,false)",[oa,reserved.reservation_id]);
+await asUser(a);
+assert.equal((await db.query("select state from public.document_quota_reservations where id=$1",[reserved.reservation_id])).rows[0].state,"confirmed");
+await rejects(() => db.query("select public.platform_reserve_document($1,$2,'cte',gen_random_uuid())",[oa,a]),"42501");
+await asUser(b);
+assert.equal((await db.query("select * from public.tenant_subscriptions")).rows.length,0);
+await asUser(v);
+await rejects(() => db.query("insert into public.carrier_customers(organization_id,name,document) values($1,'Viewer','11222333000181')",[oa]),"42501");
+console.log("PASS: explicit platform administration, no operational access for platform-only admin, customer tenant isolation, subscription isolation, service-only quota, idempotence, limits, unlimited tier and confirmed usage retention.");
 await db.exec("reset role;");
 await db.query("delete from public.memberships where organization_id=$1 and user_id=$2", [oa, a]);
 await asUser(a);
-for (const table of ["freight_drafts", "carrier_drivers", "carrier_vehicles", "trip_plans"])
+for (const table of [
+  "freight_drafts",
+  "carrier_drivers",
+  "carrier_vehicles",
+  "trip_plans",
+  "fiscal_connections",
+  "carrier_customers",
+  "tenant_subscriptions",
+  "document_quota_reservations",
+])
   assert.equal((await db.query("select * from public." + table)).rows.length, 0);
 await rejects(() => save(oa, 2), "42501");
-console.log("PASS: all 5 migrations applied to isolated PostgreSQL (PGlite).");
+console.log(
+  "PASS: all 7 migrations applied (Vault extension mocked only for local tests) to isolated PostgreSQL (PGlite).",
+);
 console.log(
   "PASS: driver/vehicle tenant isolation, scoped uniqueness, CPF check, blocked cross-tenant read/update/insert/transfer, viewer read-only, inactivation, no delete, anonymous denied, membership revocation.",
 );

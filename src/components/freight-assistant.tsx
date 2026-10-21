@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { tripPlanningIssues, tripPlanError, type ConversionResult } from "../lib/trip-planning";
+import CustomerPicker from "./customer-picker";
 import FleetPicker from "./fleet-picker";
 import { supabase } from "../supabase";
 import {
@@ -386,14 +387,26 @@ export default function FreightAssistant({
             {step === 1 && (
               <>
                 <h3>Quem participa do transporte?</h3>
+                <CustomerPicker
+                  organizationId={organizationId}
+                  onApply={(data) => {
+                    setDraft((old) => ({ ...old, ...data }));
+                    setDirty(true);
+                    setSaveFeedback({ kind: "idle" });
+                    setMessage("");
+                  }}
+                />
                 <p>
                   Remetente, destinatário, tomador, contratante e recebedor podem ser pessoas
                   diferentes.
                 </p>
                 <div className="wizard-grid">
                   {field("sender", "Remetente")}
+                  {field("senderDocument", "CPF/CNPJ do remetente", { maxLength: 14 })}
                   {field("recipient", "Destinatário")}
+                  {field("recipientDocument", "CPF/CNPJ do destinatário", { maxLength: 14 })}
                   {field("payer", "Tomador do frete")}
+                  {field("payerDocument", "CPF/CNPJ do tomador", { maxLength: 14 })}
                   {field("cfop", "CFOP para revisão fiscal", { maxLength: 4 })}
                 </div>
                 <div className="banner">

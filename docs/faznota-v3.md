@@ -1,3 +1,5 @@
+> Atualização: consulte [Administração SaaS](administracao-saas.md) para a referência 3.13.0, conexões por empresa e restrições atuais do CIOT. A avaliação anterior abaixo registra a versão consultada na época. Nenhuma emissão está habilitada.
+
 # Referência FazNota v3
 
 Consulta de 21/10/2026: https://faznota.com.br/api/v3/referencia/ carrega https://faznota.com.br/api/openapi/nota-fiscal.yaml (OpenAPI 3.10.0).

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import {
   Truck,
+  Building2,
   LayoutDashboard,
   Route,
   FileText,
@@ -19,6 +20,9 @@ import { supabase } from "../supabase";
 
 import FiscalWorkspace from "./fiscal-workspace";
 
+import Customers from "./customers";
+import PlatformAdmin from "./platform-admin";
+import FiscalConnections from "./fiscal-connections";
 import TripDetails from "./trip-details";
 import FleetRegistry from "./fleet-registry";
 import { CarrierSettings, CarrierOperation, type CarrierProfile } from "./carrier-operation";
@@ -54,6 +58,11 @@ export default function App() {
   const [password, setPassword] = useState("");
   const [user, setUser] = useState<string | null>(null);
   const [org, setOrg] = useState<string | null>(null);
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [adminFiscalCompany, setAdminFiscalCompany] = useState<{ id: string; name: string } | null>(
+    null,
+  );
+  const [role, setRole] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!supabase) return;
@@ -67,6 +76,7 @@ export default function App() {
   useEffect(() => {
     if (!supabase || !user) {
       setOrg(null);
+      setRole(null);
       setTrips([]);
       return;
     }
@@ -74,7 +84,7 @@ export default function App() {
     (async () => {
       const { data, error } = await supabase
         .from("memberships")
-        .select("organization_id")
+        .select("organization_id,role")
         .eq("user_id", user)
         .limit(1);
       if (!active) return;
@@ -83,6 +93,24 @@ export default function App() {
         return;
       }
       setOrg(data?.[0]?.organization_id ?? null);
+      setRole(data?.[0]?.role ?? null);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user]);
+  useEffect(() => {
+    let active = true;
+    setIsPlatformAdmin(false);
+    setAdminFiscalCompany(null);
+    if (!supabase || !user) return;
+    void (async () => {
+      try {
+        const { data, error } = await supabase.rpc("is_platform_admin");
+        if (active && !error) setIsPlatformAdmin(data === true);
+      } catch {
+        /* Normal tenant use stays available before platform migration. */
+      }
     })();
     return () => {
       active = false;
@@ -154,7 +182,10 @@ export default function App() {
     });
     setBusy(false);
     if (error) setNotice(error.message);
-    else setOrg(data);
+    else {
+      setOrg(data);
+      setRole("owner");
+    }
   }
   async function saveTrip(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -219,12 +250,15 @@ export default function App() {
     ["Visão geral", LayoutDashboard],
     ["Viagens", Route],
     ["Documentos", FileText],
+    ["Clientes", Building2],
     ["Operação de frete", Truck],
     ["Minha transportadora", ShieldCheck],
     ["Motoristas e veículos", Truck],
     ["Central fiscal", ShieldCheck],
+    ["Integrações fiscais", ShieldCheck],
     ["Hub de cargas", Store],
     ["Financeiro", Wallet],
+    ...(isPlatformAdmin ? [["Administração SaaS", Building2] as const] : []),
   ] as const;
   return (
     <div className="shell">
@@ -350,7 +384,7 @@ export default function App() {
               </button>
             </form>
           )}
-          {supabase && user && !org && (
+          {supabase && user && !org && !isPlatformAdmin && (
             <div className="banner">
               Você ainda não participa de uma organização.
               <button className="primary" disabled={busy} onClick={createOrg}>
@@ -358,7 +392,7 @@ export default function App() {
               </button>
             </div>
           )}
-          {(!supabase || (user && org)) && (
+          {(!supabase || (user && org) || (user && isPlatformAdmin)) && (
             <>
               {(page === "Visão geral" || page === "Viagens") && (
                 <>
@@ -552,9 +586,33 @@ export default function App() {
                   ))}
                 </section>
               )}
+              {page === "Clientes" && <Customers key={org ?? "demo"} organizationId={org} />}
               {page === "Motoristas e veículos" && (
                 <FleetRegistry key={org ?? "demo"} organizationId={org} />
               )}
+              {page === "Administração SaaS" && isPlatformAdmin && (
+                <PlatformAdmin
+                  onConfigureFiscal={(id, name) => {
+                    setAdminFiscalCompany({ id, name });
+                    setPage("Configuração fiscal da empresa");
+                  }}
+                />
+              )}
+              {page === "Configuração fiscal da empresa" &&
+                isPlatformAdmin &&
+                adminFiscalCompany && (
+                  <>
+                    <div className="banner">
+                      Administração fiscal de {adminFiscalCompany.name}. As credenciais são
+                      exclusivas desta empresa.
+                    </div>
+                    <FiscalConnections
+                      key={adminFiscalCompany.id}
+                      organizationId={adminFiscalCompany.id}
+                      role="platform_admin"
+                    />
+                  </>
+                )}
               {page === "Minha transportadora" && (
                 <CarrierSettings organizationId={org} onChange={updateProfile} />
               )}
@@ -577,6 +635,9 @@ export default function App() {
                     setPage("Central fiscal");
                   }}
                 />
+              )}
+              {page === "Integrações fiscais" && (
+                <FiscalConnections key={org ?? "demo"} organizationId={org} role={role} />
               )}
               {page === "Central fiscal" && (
                 <FiscalWorkspace key={org ?? "demo"} trips={trips} initialKeys={invoiceKey} />
