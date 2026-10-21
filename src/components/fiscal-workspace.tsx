@@ -38,7 +38,13 @@ const capabilities = [
     "Nenhuma rota identificada no contrato anexado.",
   ],
 ];
-export default function FiscalWorkspace({ trips }: { trips: Trip[] }) {
+export default function FiscalWorkspace({
+  trips,
+  initialKeys = "",
+}: {
+  trips: Trip[];
+  initialKeys?: string;
+}) {
   const [tab, setTab] = useState<(typeof tabs)[number]>("Preparar documentos");
   const [kind, setKind] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Draft[]>([]);
@@ -424,6 +430,7 @@ export default function FiscalWorkspace({ trips }: { trips: Trip[] }) {
                 Chaves das NF-e
                 <textarea
                   name="keys"
+                  defaultValue={initialKeys}
                   rows={3}
                   placeholder="Uma chave de 44 dígitos por linha. Pode preencher depois."
                 />

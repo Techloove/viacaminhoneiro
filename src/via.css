@@ -860,3 +860,81 @@ textarea:focus-visible {
     font-size: 11px;
   }
 }
+.carrier-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin: 25px 0;
+}
+.carrier-form label {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+}
+.carrier-form > div {
+  align-self: end;
+}
+.note-inbox {
+  display: grid;
+  margin-top: 18px;
+  gap: 10px;
+}
+.note-inbox button {
+  text-align: left;
+  justify-content: flex-start;
+  padding: 18px;
+  background: #f6f8f2;
+  color: #35553a;
+  border: 1px solid #e2e9db;
+  border-radius: 8px;
+}
+.note-inbox button.note-selected {
+  border-color: #557849;
+  background: #eaf1e1;
+}
+.note-inbox span {
+  flex: 1;
+}
+.note-inbox strong {
+  display: block;
+  font-size: 12px;
+}
+.note-inbox small {
+  display: block;
+  font-size: 10px;
+  margin-top: 7px;
+}
+.note-key {
+  overflow-wrap: anywhere;
+}
+.operation-stage {
+  padding: 22px 0;
+  border-top: 1px solid #e5ebdf;
+}
+.operation-stage strong {
+  font-size: 15px;
+}
+.operation-stage p {
+  font-size: 12px;
+  margin: 10px 0;
+}
+.operation-stage button {
+  margin-top: 8px;
+}
+.section-title h2 > svg {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+nav {
+  max-height: 65vh;
+  overflow: auto;
+}
+@media (max-width: 700px) {
+  .carrier-form {
+    grid-template-columns: 1fr;
+  }
+  nav {
+    max-height: none;
+  }
+}

@@ -57,3 +57,13 @@ O XML é lido localmente, com limite de 2 MB e rejeição de DOCTYPE/ENTITY. A l
 O contrato FazNota analisado não especifica CIOT nem todos os campos/consultas de CT-e e MDF-e. Obter contrato completo e homologação antes de integrar emissões. Não inserir tokens fiscais em variáveis VITE_, que são públicas.
 
 O projeto Lovable informado é https://lovable.dev/projects/7a534a95-85fa-412c-9663-21a827baba13. A integração de código usa a branch main do GitHub, preservando a estrutura TanStack Start e o histórico do Lovable. A publicação do site é gerenciada no Lovable.
+
+## SaaS de transportadoras: operação de frete
+
+A primeira audiência passa a ser transportadoras prestadoras de frete. Com Supabase configurado, o conteúdo operacional exige login e associação a uma organização; o modo público sem Supabase é apenas demonstração. O cadastro Minha transportadora salva dados em carrier_profiles, após aplicar também `supabase/migrations/202610210002_carrier_workflow.sql`. Somente owner/manager podem alterar o cadastro. A organização é a fronteira de acesso, não um campo livre de filtro.
+
+A tela Operação de frete reúne NF-e → CT-e → CIOT → MDF-e. XML importado manualmente pode informar o CNPJ da transportadora; coincidência de cadastro não comprova acesso autorizado, autenticidade ou autorização SEFAZ. O certificado não envia notificações: a captura necessita de distribuição autorizada, NSU, monitoramento e tratamento das limitações do serviço. Isso ainda não está integrado. Não cadastrar certificado/senha no frontend.
+
+A nova migração também prepara notas recebidas, operações e documentos confirmados com vínculos compostos por organização. Essas três tabelas são somente leitura para clientes autenticados; apenas backend autorizado poderá registrar confirmações reais. Não existe ainda endpoint de escrita, automação da cadeia fiscal ou fila de notificações. Uma NF-e não é tratada como autorização para emitir CT-e; exigências fiscais/credenciamento devem ser avaliados. CIOT pode depender de modalidade e contratante, e precisa ser registrado no prazo aplicável, sem assumir ordem universal.
+
+Antes de disponibilizar a clientes: aplicar e testar migrações em homologação com duas organizações; validar isolamento de leitura/escrita e permissões; implementar captura autorizada e custódia de certificados; completar os contratos FazNota e credenciamento/parceiro CIOT. Notas locais não são armazenadas no banco e rascunhos fiscais continuam temporários.

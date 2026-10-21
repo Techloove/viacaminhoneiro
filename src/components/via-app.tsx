@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   Truck,
   LayoutDashboard,
@@ -19,6 +19,8 @@ import { supabase } from "../supabase";
 
 import FiscalWorkspace from "./fiscal-workspace";
 
+import { CarrierSettings, CarrierOperation, type CarrierProfile } from "./carrier-operation";
+
 type Trip = {
   id: string;
   origin: string;
@@ -29,10 +31,13 @@ type Trip = {
   status: string;
   organization_id?: string;
 };
-type Doc = { key: string; number: string; issuer: string };
+type Doc = { key: string; number: string; issuer: string; carrierCnpj?: string };
 const money = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v / 100);
 export default function App() {
+  const [invoiceKey, setInvoiceKey] = useState("");
+  const [profile, setProfile] = useState<CarrierProfile | null>(null);
+  const updateProfile = useCallback((p: CarrierProfile | null) => setProfile(p), []);
   const [page, setPage] = useState("Visão geral");
   const [modal, setModal] = useState(false);
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -74,17 +79,28 @@ export default function App() {
     };
   }, [user]);
   useEffect(() => {
+    setTrips([]);
     if (!supabase || !org) return;
+    let active = true;
     supabase
       .from("trips")
       .select("*")
       .eq("organization_id", org)
       .order("created_at", { ascending: false })
       .then(({ data, error }) => {
+        if (!active) return;
         if (error) setNotice(error.message);
         else setTrips(data ?? []);
       });
-  }, [org]);
+    return () => {
+      active = false;
+    };
+  }, [org, user]);
+  useEffect(() => {
+    setDocs([]);
+    setProfile(null);
+    setInvoiceKey("");
+  }, [user, org]);
   async function login(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -173,6 +189,7 @@ export default function App() {
           key,
           number: String(inf.ide?.nNF ?? ""),
           issuer: String(inf.emit?.xNome ?? "Emitente não informado"),
+          carrierCnpj: String(inf.transp?.transporta?.CNPJ ?? "").replace(/\D/g, ""),
         },
       ]);
       setNotice(
@@ -187,6 +204,8 @@ export default function App() {
     ["Visão geral", LayoutDashboard],
     ["Viagens", Route],
     ["Documentos", FileText],
+    ["Operação de frete", Truck],
+    ["Minha transportadora", ShieldCheck],
     ["Central fiscal", ShieldCheck],
     ["Hub de cargas", Store],
     ["Financeiro", Wallet],
@@ -203,7 +222,7 @@ export default function App() {
         <div className="workspace">
           SUA OPERAÇÃO
           <strong>
-            Central de transporte <span>BR</span>
+            {profile?.name || "Minha transportadora"} <span>BR</span>
           </strong>
         </div>
         <nav>
@@ -304,191 +323,213 @@ export default function App() {
               </button>
             </div>
           )}
-          {(page === "Visão geral" || page === "Viagens") && (
+          {(!supabase || (user && org)) && (
             <>
-              <section className="stats">
-                {(
-                  [
-                    [
-                      "Viagens cadastradas",
-                      String(trips.length),
-                      "Sua operação em um só lugar",
-                      Route,
-                    ],
-                    [
-                      "Aguardando revisão",
-                      String(trips.length),
-                      "Confira antes de emitir",
-                      FileText,
-                    ],
-                    [
-                      "Fretes previstos",
-                      money(trips.reduce((s, t) => s + t.freight_cents, 0)),
-                      "Valores brutos dos rascunhos",
-                      Wallet,
-                    ],
-                  ] as const
-                ).map(([title, value, sub, Icon]) => (
-                  <article key={String(title)}>
+              {(page === "Visão geral" || page === "Viagens") && (
+                <>
+                  <section className="stats">
+                    {(
+                      [
+                        [
+                          "Viagens cadastradas",
+                          String(trips.length),
+                          "Sua operação em um só lugar",
+                          Route,
+                        ],
+                        [
+                          "Aguardando revisão",
+                          String(trips.length),
+                          "Confira antes de emitir",
+                          FileText,
+                        ],
+                        [
+                          "Fretes previstos",
+                          money(trips.reduce((s, t) => s + t.freight_cents, 0)),
+                          "Valores brutos dos rascunhos",
+                          Wallet,
+                        ],
+                      ] as const
+                    ).map(([title, value, sub, Icon]) => (
+                      <article key={String(title)}>
+                        <div>
+                          {String(title)}
+                          <Icon size={19} />
+                        </div>
+                        <strong>{String(value)}</strong>
+                        <small>{String(sub)}</small>
+                      </article>
+                    ))}
+                  </section>
+                  {page === "Visão geral" && (
+                    <section className="quick">
+                      <div>
+                        <span className="pill">DO DOCUMENTO À ESTRADA</span>
+                        <h2>
+                          Sua próxima viagem
+                          <br />
+                          começa aqui.
+                        </h2>
+                        <p>
+                          Reúna as informações do frete e acompanhe
+                          <br />
+                          cada etapa em um único lugar.
+                        </p>
+                        <button onClick={() => setModal(true)}>
+                          Organizar uma viagem <ArrowUpRight size={18} />
+                        </button>
+                      </div>
+                      <div className="route-art">
+                        <span className="route-label">ORIGEM</span>
+                        <div className="route-line">
+                          <i />
+                          <span />
+                          <Truck size={44} />
+                          <span />
+                          <i />
+                        </div>
+                        <span className="route-label end">SEU PRÓXIMO DESTINO</span>
+                        <div className="art-note">
+                          <CheckCircle2 size={17} /> Cada etapa, no seu controle
+                        </div>
+                      </div>
+                    </section>
+                  )}
+                  <section className="panel">
+                    <div className="section-title">
+                      <div>
+                        <h2>Suas viagens</h2>
+                        <p>Do planejamento à chegada.</p>
+                      </div>
+                      <span className="count">{trips.length} viagens</span>
+                    </div>
+                    {trips.length ? (
+                      <div className="table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>ROTA</th>
+                              <th>MOTORISTA / VEÍCULO</th>
+                              <th>FRETE BRUTO</th>
+                              <th>SITUAÇÃO</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {trips.map((t) => (
+                              <tr key={t.id}>
+                                <td>
+                                  <strong>{t.origin}</strong>
+                                  <br />
+                                  <span>→ {t.destination}</span>
+                                </td>
+                                <td>
+                                  {t.driver}
+                                  <br />
+                                  <span>{t.plate}</span>
+                                </td>
+                                <td>{money(t.freight_cents)}</td>
+                                <td>
+                                  <span className="status">Rascunho</span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="empty">
+                        <Route size={32} />
+                        <h3>O próximo destino começa com você</h3>
+                        <p>Cadastre sua primeira viagem para organizar o frete e os documentos.</p>
+                        <button className="secondary" onClick={() => setModal(true)}>
+                          <Plus size={16} /> Cadastrar viagem
+                        </button>
+                      </div>
+                    )}
+                  </section>
+                </>
+              )}
+              {page === "Documentos" && (
+                <section className="panel">
+                  <div className="section-title">
                     <div>
-                      {String(title)}
-                      <Icon size={19} />
-                    </div>
-                    <strong>{String(value)}</strong>
-                    <small>{String(sub)}</small>
-                  </article>
-                ))}
-              </section>
-              {page === "Visão geral" && (
-                <section className="quick">
-                  <div>
-                    <span className="pill">DO DOCUMENTO À ESTRADA</span>
-                    <h2>
-                      Sua próxima viagem
-                      <br />
-                      começa aqui.
-                    </h2>
-                    <p>
-                      Reúna as informações do frete e acompanhe
-                      <br />
-                      cada etapa em um único lugar.
-                    </p>
-                    <button onClick={() => setModal(true)}>
-                      Organizar uma viagem <ArrowUpRight size={18} />
-                    </button>
-                  </div>
-                  <div className="route-art">
-                    <span className="route-label">ORIGEM</span>
-                    <div className="route-line">
-                      <i />
-                      <span />
-                      <Truck size={44} />
-                      <span />
-                      <i />
-                    </div>
-                    <span className="route-label end">SEU PRÓXIMO DESTINO</span>
-                    <div className="art-note">
-                      <CheckCircle2 size={17} /> Cada etapa, no seu controle
+                      <h2>Documentos da operação</h2>
+                      <p>
+                        Leitura local de NF-e. Arquivamento e vínculo com viagens serão integrados
+                        na próxima etapa.
+                      </p>
                     </div>
                   </div>
+                  <label className="upload">
+                    <Upload />
+                    <strong>Importar XML de NF-e</strong>
+                    <span>Arquivo de até 2 MB · não altera nem emite documentos fiscais</span>
+                    <input
+                      type="file"
+                      accept=".xml,application/xml,text/xml"
+                      onChange={(e) => {
+                        void importXML(e.target.files?.[0]);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  {docs.map((d) => (
+                    <article className="doc" key={d.key}>
+                      <FileText />
+                      <div>
+                        <strong>
+                          NF-e {d.number} · {d.issuer}
+                        </strong>
+                        <p>{d.key}</p>
+                        <small>Importado nesta sessão · autorização não verificada</small>
+                      </div>
+                    </article>
+                  ))}
                 </section>
               )}
-              <section className="panel">
-                <div className="section-title">
-                  <div>
-                    <h2>Suas viagens</h2>
-                    <p>Do planejamento à chegada.</p>
-                  </div>
-                  <span className="count">{trips.length} viagens</span>
-                </div>
-                {trips.length ? (
-                  <div className="table-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>ROTA</th>
-                          <th>MOTORISTA / VEÍCULO</th>
-                          <th>FRETE BRUTO</th>
-                          <th>SITUAÇÃO</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {trips.map((t) => (
-                          <tr key={t.id}>
-                            <td>
-                              <strong>{t.origin}</strong>
-                              <br />
-                              <span>→ {t.destination}</span>
-                            </td>
-                            <td>
-                              {t.driver}
-                              <br />
-                              <span>{t.plate}</span>
-                            </td>
-                            <td>{money(t.freight_cents)}</td>
-                            <td>
-                              <span className="status">Rascunho</span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="empty">
-                    <Route size={32} />
-                    <h3>O próximo destino começa com você</h3>
-                    <p>Cadastre sua primeira viagem para organizar o frete e os documentos.</p>
-                    <button className="secondary" onClick={() => setModal(true)}>
-                      <Plus size={16} /> Cadastrar viagem
-                    </button>
-                  </div>
-                )}
-              </section>
-            </>
-          )}
-          {page === "Documentos" && (
-            <section className="panel">
-              <div className="section-title">
-                <div>
-                  <h2>Documentos da operação</h2>
-                  <p>
-                    Leitura local de NF-e. Arquivamento e vínculo com viagens serão integrados na
-                    próxima etapa.
-                  </p>
-                </div>
-              </div>
-              <label className="upload">
-                <Upload />
-                <strong>Importar XML de NF-e</strong>
-                <span>Arquivo de até 2 MB · não altera nem emite documentos fiscais</span>
-                <input
-                  type="file"
-                  accept=".xml,application/xml,text/xml"
-                  onChange={(e) => {
-                    void importXML(e.target.files?.[0]);
-                    e.target.value = "";
+              {page === "Minha transportadora" && (
+                <CarrierSettings organizationId={org} onChange={updateProfile} />
+              )}
+              {page === "Operação de frete" && (
+                <CarrierOperation
+                  notes={docs}
+                  profile={profile}
+                  onImport={() => setPage("Documentos")}
+                  onFiscal={(key) => {
+                    setInvoiceKey(key);
+                    setPage("Central fiscal");
                   }}
                 />
-              </label>
-              {docs.map((d) => (
-                <article className="doc" key={d.key}>
-                  <FileText />
-                  <div>
-                    <strong>
-                      NF-e {d.number} · {d.issuer}
-                    </strong>
-                    <p>{d.key}</p>
-                    <small>Importado nesta sessão · autorização não verificada</small>
-                  </div>
-                </article>
-              ))}
-            </section>
-          )}
-          {page === "Central fiscal" && <FiscalWorkspace trips={trips} />}
-          {page === "Hub de cargas" && (
-            <section className="panel empty">
-              <Store size={38} />
-              <h2>Novas conexões, novos caminhos.</h2>
-              <p>
-                O hub receberá ofertas de cargas e serviços, propostas e contratação.
-                <br />
-                Esta versão ainda não publica nem aceita ofertas.
-              </p>
-              <span className="status">Em planejamento</span>
-            </section>
-          )}
-          {page === "Financeiro" && (
-            <section className="panel empty">
-              <Wallet size={38} />
-              <h2>Clareza para cada frete.</h2>
-              <p>
-                Total bruto previsto:{" "}
-                <strong>{money(trips.reduce((s, t) => s + t.freight_cents, 0))}</strong>
-              </p>
-              <p>Retenções, despesas, pagamentos e valores líquidos ainda não foram calculados.</p>
-              <span className="status">Regras fiscais pendentes de validação</span>
-            </section>
+              )}
+              {page === "Central fiscal" && (
+                <FiscalWorkspace key={org ?? "demo"} trips={trips} initialKeys={invoiceKey} />
+              )}
+              {page === "Hub de cargas" && (
+                <section className="panel empty">
+                  <Store size={38} />
+                  <h2>Novas conexões, novos caminhos.</h2>
+                  <p>
+                    O hub receberá ofertas de cargas e serviços, propostas e contratação.
+                    <br />
+                    Esta versão ainda não publica nem aceita ofertas.
+                  </p>
+                  <span className="status">Em planejamento</span>
+                </section>
+              )}
+              {page === "Financeiro" && (
+                <section className="panel empty">
+                  <Wallet size={38} />
+                  <h2>Clareza para cada frete.</h2>
+                  <p>
+                    Total bruto previsto:{" "}
+                    <strong>{money(trips.reduce((s, t) => s + t.freight_cents, 0))}</strong>
+                  </p>
+                  <p>
+                    Retenções, despesas, pagamentos e valores líquidos ainda não foram calculados.
+                  </p>
+                  <span className="status">Regras fiscais pendentes de validação</span>
+                </section>
+              )}
+            </>
           )}
           <footer>
             Feito para quem movimenta o Brasil.<span>Via Caminhoneiro</span>
