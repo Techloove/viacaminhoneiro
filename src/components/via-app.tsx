@@ -43,6 +43,7 @@ export default function App() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [docs, setDocs] = useState<Doc[]>([]);
   const [notice, setNotice] = useState("");
+  const [loginError, setLoginError] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [user, setUser] = useState<string | null>(null);
@@ -51,7 +52,10 @@ export default function App() {
   useEffect(() => {
     if (!supabase) return;
     supabase.auth.getSession().then(({ data }) => setUser(data.session?.user.id ?? null));
-    const { data } = supabase.auth.onAuthStateChange((_e, s) => setUser(s?.user.id ?? null));
+    const { data } = supabase.auth.onAuthStateChange((_e, s) => {
+      setUser(s?.user.id ?? null);
+      if (s) setLoginError("");
+    });
     return () => data.subscription.unsubscribe();
   }, []);
   useEffect(() => {
@@ -103,13 +107,16 @@ export default function App() {
   }, [user, org]);
   async function login(e: React.FormEvent) {
     e.preventDefault();
+    if (busy) return;
+    setLoginError("");
     setBusy(true);
     try {
       const { error } = await supabase!.auth.signInWithPassword({ email, password });
       if (error) throw error;
       setPassword("");
+      setLoginError("");
     } catch (e) {
-      setNotice((e as Error).message);
+      setLoginError((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -293,6 +300,11 @@ export default function App() {
           {supabase && !user && (
             <form className="panel login" onSubmit={login}>
               <h2>Acesse sua operação</h2>
+              {loginError && (
+                <div className="notice" role="alert">
+                  {loginError}
+                </div>
+              )}
               <p>Use uma conta cadastrada no Supabase. O acesso é restrito à sua organização.</p>
               <input
                 aria-label="E-mail"
