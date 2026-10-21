@@ -86,6 +86,16 @@ A nova tabela tem leitura por RLS para owner/manager/operator/viewer da organiza
 
 Verificações desta entrega: testes de interface para importação, navegação sem perda de campos, salvar/reabrir, falhas de gravação e conflito; teste local das três migrações em PostgreSQL isolado com PGlite para isolamento, permissões e concorrência. Esses testes não substituem validar login e duas organizações no Supabase real após aplicar a migração.
 
-A interface não calcula piso oficial, impostos ou frete líquido, não paga frete e não emite CT-e/CIOT/MDF-e. O XML original não é arquivado; os dados de preparação selecionados ficam no rascunho salvo. Cadastros reutilizáveis de motoristas/veículos e homologação fiscal permanecem etapas seguintes.
+A interface não calcula piso oficial, impostos ou frete líquido, não paga frete e não emite CT-e/CIOT/MDF-e. O XML original não é arquivado; os dados de preparação selecionados ficam no rascunho salvo. Cadastros reutilizáveis de motoristas/veículos estão descritos abaixo; a homologação fiscal permanece pendente.
 
 Para repetir as verificações: `npm run test` (interface e lógica), `npm run test:db` (PostgreSQL isolado em memória, sem conexão ao Supabase), `./node_modules/.bin/tsc --noEmit` e `npm run build`.
+
+## Motoristas, veículos e cadastro rápido
+
+Aplique **somente** `supabase/migrations/202610210004_fleet_registry.sql` após as migrações 001–003. A página **Motoristas e veículos** oferece busca, edição, inativação e reativação. Não há exclusão de registros. Nome e CPF são obrigatórios para motorista; placa, tipo e eixos para veículo. CNH, validade, contato, RNTRC e proprietário podem ser complementados depois. CPF é validado também no banco; RNTRC/CNH não são consultados externamente.
+
+Na etapa **Viagem e CIOT** do assistente, selecione um motorista, veículo de tração e implemento ativo. Os campos são copiados para o rascunho; não são referências dinâmicas que alteram operações passadas. Eixos são somados para tração/implemento cadastrados e devem ser revisados quando houver preenchimento manual ou composição adicional. Os botões **Cadastrar motorista aqui** e **Cadastrar veículo aqui** permitem incluir e usar o registro sem sair do frete. Salve o rascunho após preencher os dados.
+
+As telas carregam até 1.000 registros de cada categoria por transportadora, com busca sobre esse conjunto. Owner, manager e operator podem cadastrar/editar/inativar; viewer apenas consulta. Inativos ficam disponíveis no cadastro mediante filtro, mas não nas seleções para novas operações. CPF e placa são únicos dentro da organização, podendo existir em empresas diferentes. RLS restringe leitura/escrita por membership; um trigger impede mover cadastros entre empresas. As cópias históricas nos rascunhos não são apagadas pela inativação.
+
+`npm run test:db` passou com as quatro migrações em PostgreSQL local isolado: leitura e alteração entre empresas negadas, duplicidade por empresa, consulta sem escrita para viewer, acesso anônimo negado e revogação após remover membership. Isso não significa que contas de teste foram criadas no Supabase real; execute também o roteiro em `docs/frota-e-isolamento.md` após aplicar a quarta migração.

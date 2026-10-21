@@ -10,6 +10,7 @@ import {
   Search,
   X,
 } from "lucide-react";
+import FleetPicker from "./fleet-picker";
 import { supabase } from "../supabase";
 import {
   emptyFreightDraft,
@@ -364,6 +365,14 @@ export default function FreightAssistant({
             {step === 3 && (
               <>
                 <h3>Viagem e preparação do CIOT</h3>
+                <FleetPicker
+                  organizationId={organizationId}
+                  draft={draft}
+                  onApply={(data) => {
+                    setDraft((old) => ({ ...old, ...data }));
+                    setDirty(true);
+                  }}
+                />
                 <div className="wizard-grid">
                   {field("origin", "Origem", { maxLength: 120 })}
                   {field("destination", "Destino", { maxLength: 120 })}

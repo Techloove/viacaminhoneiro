@@ -19,6 +19,7 @@ import { supabase } from "../supabase";
 
 import FiscalWorkspace from "./fiscal-workspace";
 
+import FleetRegistry from "./fleet-registry";
 import { CarrierSettings, CarrierOperation, type CarrierProfile } from "./carrier-operation";
 
 type Trip = {
@@ -213,6 +214,7 @@ export default function App() {
     ["Documentos", FileText],
     ["Operação de frete", Truck],
     ["Minha transportadora", ShieldCheck],
+    ["Motoristas e veículos", Truck],
     ["Central fiscal", ShieldCheck],
     ["Hub de cargas", Store],
     ["Financeiro", Wallet],
@@ -505,6 +507,9 @@ export default function App() {
                     </article>
                   ))}
                 </section>
+              )}
+              {page === "Motoristas e veículos" && (
+                <FleetRegistry key={org ?? "demo"} organizationId={org} />
               )}
               {page === "Minha transportadora" && (
                 <CarrierSettings organizationId={org} onChange={updateProfile} />

@@ -24,4 +24,4 @@ Voltar entre etapas não apaga dados. Sair pela navegação com alterações pen
 
 ## Limitações
 
-Uma NF-e por rascunho, até 100 registros recentes na lista, salvamento manual e sem XML original no Storage. Cadastros rápidos reutilizáveis e integrações externas não fazem parte desta entrega. A sequência da interface não substitui regras legais de exigência e prazo do CIOT.
+Uma NF-e por rascunho, até 100 registros recentes na lista, salvamento manual e sem XML original no Storage. Cadastros rápidos reutilizáveis são habilitados pela migração 004, descrita em frota-e-isolamento.md. Integrações externas continuam pendentes. A sequência da interface não substitui regras legais de exigência e prazo do CIOT.
