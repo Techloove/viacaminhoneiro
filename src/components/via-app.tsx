@@ -247,6 +247,7 @@ export default function App() {
     }
   }
   const items = [
+    ...(isPlatformAdmin ? [["Administração SaaS", Building2] as const] : []),
     ["Visão geral", LayoutDashboard],
     ["Viagens", Route],
     ["Documentos", FileText],
@@ -258,7 +259,6 @@ export default function App() {
     ["Integrações fiscais", ShieldCheck],
     ["Hub de cargas", Store],
     ["Financeiro", Wallet],
-    ...(isPlatformAdmin ? [["Administração SaaS", Building2] as const] : []),
   ] as const;
   return (
     <div className="shell">
